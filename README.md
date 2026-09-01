@@ -1,6 +1,6 @@
 # Spaceship Titanic: Predicting Who Got Transported
 
-This is my first ML project on the [Kaggle Spaceship Titanic](https://www.kaggle.com/competitions/spaceship-titanic) dataset. The project is to predict which passengers were transported to another dimension after the ship hit a spacetime anomaly. It is a binary classification problem. I self-learn from the materials from - Kaggle courses, Google ML Crash Courses, my own custom agent from Claude to design a 30-days ML program including related YouTube videos.
+This is my newbie 🍼 ML project on the [Kaggle Spaceship Titanic](https://www.kaggle.com/competitions/spaceship-titanic) dataset. The project is to predict which passengers were transported to another dimension after the ship hit a spacetime anomaly. It is a binary classification problem. I self-learn from the materials from - Kaggle courses, Google ML Crash Courses, my own custom agent from Claude to design a 30-days ML program including related YouTube videos.
 
 ### Please feel free to leave me any comments (or 📩 👉 natkuma@outlook.com) on how to improve this project, I'm super new to this topic, your advice will be VERY helpful for my learning journey!!
 # 
