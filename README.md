@@ -24,7 +24,7 @@ Each row is a passenger. Some columns describe them (home planet, age, cabin), s
 Two raw columns held more information than they looked like:
 
 - `PassengerId` (like `0001_01`) encodes a travel **group** and a person's number within it. I pulled out the group and computed `GroupSize`, how many people travelled together.
-- `Cabin` (like `B/0/P`) encodes **deck / number / side**. I split it into `Deck` and `CabinSide`.
+- `Cabin` (like `B/0/P`) encodes **deck / number / side**. I split it into `Deck`, `CabinNum` and `CabinSide`.
 
 I also added `TotalSpend`, the sum of all five spending columns.
 
