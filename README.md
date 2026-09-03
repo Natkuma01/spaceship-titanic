@@ -9,6 +9,15 @@ This is my newbie 🍼 ML project on the [Kaggle Spaceship Titanic](https://www.
 
 The full write-up with charts and step-by-step explanation is in [`notebooks/spaceship-titanic.ipynb`](notebooks/spaceship-titanic.ipynb). A clean script version is in [`src/pipeline.py`](src/pipeline.py).
 
+## Version history
+
+| Version | Date | Notes |
+| --- | --- | --- |
+| 1.0 | 2026-09-01 | My first attempt at training a machine learning model. I used AI-generated advice extensively to help me learn the workflow and build this project. |
+| 1.1 |  | Use less help from AI tools while continuing to research effective strategies for predicting a particular dataset. |
+| 1.2 |  | Improve feature engineering and model evaluation through more independent experimentation. |
+| 1.3 |  | Tune model settings and compare stronger approaches to improve prediction performance. |
+
 ---
 
 ## The problem
@@ -94,22 +103,6 @@ jupyter notebook notebooks/spaceship-titanic.ipynb
 ```
 
 Both produce `submissions/submission.csv`, ready to upload to Kaggle.
-
-## Project structure
-
-```
-spaceship-titanic/
-├── README.md
-├── requirements.txt
-├── notebooks/
-│   └── spaceship-titanic.ipynb   # full walkthrough with charts and explanations
-├── src/
-│   └── pipeline.py               # clean, runnable script version
-├── images/                       # charts used in this README
-├── submissions/
-│   └── submission.csv            # model predictions in Kaggle format
-└── data/                         # the Kaggle CSVs (not committed; download them)
-```
 
 ## What I would try next
 
