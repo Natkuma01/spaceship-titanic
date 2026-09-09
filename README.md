@@ -15,8 +15,9 @@ The full write-up with charts and step-by-step explanation is in [`notebooks/spa
 | --- | --- | --- |
 | 1.0 | 2026&#8209;09&#8209;01 | My first attempt at training a machine learning model. I used AI-generated advice extensively to help me learn the workflow and build this project. |
 | 1.1 | 2026&#8209;09&#8209;06 | Added the model training and evaluation step (HistGradientBoostingClassifier), reaching ~81% validation accuracy on the cleaned dataset. |
-| 1.2 |  | Improve feature engineering and model evaluation through more independent experimentation. |
-| 1.3 |  | Tune model settings and compare stronger approaches to improve prediction performance. |
+| 1.2 | 2026&#8209;09&#8209;09 | <img width="1294" height="260" alt="Screenshot 2026-09-09 at 2 22 32 AM" src="https://github.com/user-attachments/assets/4158a948-0702-46f7-a0b6-9491aa48e247" />
+ 
+
 
 ---
 
