@@ -1,0 +1,26 @@
+# macOS
+.DS_Store
+
+# Python-generated files
+__pycache__/
+*.pyc
+
+# Virtual environments
+.venv/
+venv/
+
+# Local secrets and configuration
+.env
+
+# Jupyter-generated files
+.ipynb_checkpoints/
+
+# Test-generated files
+.pytest_cache/
+
+# Trained model artifacts
+artifacts/*
+!artifacts/.gitkeep
+
+# Kaggle data downloaded locally
+data/*.csv

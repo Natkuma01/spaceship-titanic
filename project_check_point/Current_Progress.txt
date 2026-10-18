@@ -1,0 +1,209 @@
+SPACESHIP TITANIC — CURRENT PROGRESS CHECKPOINT
+Last updated: 2026-10-17
+
+HOW TO RESUME
+At the start of a new chat, ask the tutor:
+
+"Read project_check_point/Instruction.txt,
+project_check_point/Current_Progress.txt, and
+project_check_point/deployment_roadmap.txt. Continue from the recorded next task."
+
+Read Instruction.txt first because it defines the tutoring style. The student is
+a beginner and writes the project implementation. The tutor explains briefly,
+gives one productive step at a time, reviews the result, and keeps questions
+infrequent and purposeful. The student prefers spending more time on the model
+than on writing a large number of tests.
+
+======================================================================
+CURRENT GOAL
+======================================================================
+
+Turn the original Kaggle notebook/script into a professional application with:
+- A leakage-safe sklearn training Pipeline
+- A saved, versioned model artifact
+- A typed FastAPI prediction service
+- A Streamlit interface that calls FastAPI
+- Tests, containers, deployment documentation, and basic monitoring
+
+The leakage-safe model pipeline, evaluation script, saved artifact, metadata,
+typed single-passenger schemas, startup artifact loading, and the first three
+FastAPI endpoints are complete. GET /health, GET /model-info, and POST /predict
+work and are covered by focused integration tests. Batch prediction and
+Streamlit have not been implemented yet.
+
+======================================================================
+COMPLETED WORK
+======================================================================
+
+1. Original assessment and production decisions
+- Original implementation: src/pipeline.py.
+- Dataset: 8,693 training rows and 4,277 Kaggle test rows.
+- Original HistGradientBoosting baseline:
+  * 5-fold CV accuracy: 0.8036 (+/- 0.0093)
+  * Holdout accuracy: 0.8079
+- Identified preprocessing leakage in the original script because learned
+  imputation/encoding happened before validation splits.
+- Identified training-serving skew in GroupSize and group-based imputation.
+- Removed GroupSize and the raw group ID from version one so a passenger receives
+  the same preprocessing alone or in a batch.
+- Retained row-based GroupMemberNumber from the PassengerId suffix.
+- Kept CabinNumber as a numeric ship-location feature.
+- Kept the domain rule that a missing individual spending value contributes zero
+  when calculating TotalSpend. A real zero remains a real zero.
+
+2. Repository hygiene and package structure
+- Added .gitignore rules for caches, environments, local secrets, artifacts,
+  macOS files, notebook checkpoints, and local Kaggle CSV files.
+- Stopped tracking .DS_Store and data/*.csv while preserving the local files.
+- Added the src/spaceship_titanic package, scripts, tests, api, app, and artifacts
+  directories. Empty directories remain untracked until they contain files.
+- Added pytest.ini with src on the test import path.
+
+3. Deterministic feature engineering
+File: src/spaceship_titanic/features.py
+
+engineer_features:
+- Copies its input instead of mutating raw data.
+- Splits Cabin into Deck, numeric CabinNumber, and CabinSide.
+- Extracts numeric GroupMemberNumber from PassengerId.
+- Calculates TotalSpend from RoomService, FoodCourt, ShoppingMall, Spa, and
+  VRDeck, treating missing components as zero for this calculation.
+- Handles one-row requests and missing identifiers safely.
+
+4. Complete leakage-safe sklearn Pipeline
+File: src/spaceship_titanic/model.py
+
+The pipeline contains:
+- FunctionTransformer(engineer_features, validate=False).
+- ColumnTransformer with feature-specific policies:
+  * Age: median imputation learned from the current training fold.
+  * Five spending columns: constant-zero imputation.
+  * Categorical fields: most-frequent imputation followed by
+    OneHotEncoder(handle_unknown="ignore", sparse_output=False).
+  * CabinNumber, GroupMemberNumber, and TotalSpend: passed through unchanged.
+  * Unused raw fields such as Name, Cabin, and PassengerId: dropped after their
+    engineered information is extracted.
+- HistGradientBoostingClassifier(random_state=42).
+
+Important revised decision:
+- A single median imputer is NOT used for every numeric field. The student
+  correctly challenged that design because median CabinNumber and median
+  GroupMemberNumber are not meaningful domain substitutions.
+- HistGradientBoosting handles the 199 missing CabinNumber values natively.
+- GroupMemberNumber and TotalSpend have no missing values in the current training
+  data, so they pass through unchanged.
+
+5. Leakage-safe training and evaluation
+File: scripts/train.py
+
+- Creates a reproducible, stratified 80/20 train/holdout split.
+- Runs shuffled 5-fold StratifiedKFold cross-validation on the training portion.
+- Fits the entire pipeline inside every fold so learned preprocessing never sees
+  that fold's validation rows.
+- Reports accuracy, precision, recall, F1, ROC-AUC, and confusion-matrix counts.
+
+Verified metrics on 2026-10-17:
+- Training rows: 6,954
+- Holdout rows: 1,739
+- Fold accuracies:
+  [0.80373832, 0.80877067, 0.80014378, 0.80589504, 0.80287770]
+- Mean CV accuracy: 0.8043
+- CV standard deviation: 0.0029
+- Holdout accuracy: 0.8137 (1,415 / 1,739 correct)
+- Holdout ROC-AUC: 0.9120
+- Confusion counts:
+  * True negatives: 703
+  * False positives: 160
+  * False negatives: 164
+  * True positives: 712
+- Precision, recall, and F1 are approximately 0.81 for both classes.
+- Compared with the old pipeline, average accuracy is essentially preserved while
+  preprocessing is now leakage-safe, batch-independent, and deployable.
+
+6. Saved production artifact and metadata
+Generated locally and ignored by Git:
+- artifacts/spaceship_titanic_pipeline_v1.joblib (about 378 KB)
+- artifacts/spaceship_titanic_pipeline_v1_metadata.json
+
+- After evaluation, scripts/train.py clones the model configuration and refits it
+  on all 8,693 labeled rows for production use.
+- The joblib artifact contains feature engineering, preprocessing, and classifier.
+- A fresh process successfully reloaded it and produced predictions/probabilities.
+- Metadata records artifact version, UTC training time, training-row count,
+  decision threshold, CV mean/std, holdout accuracy, and holdout ROC-AUC.
+
+7. Automated tests
+Files:
+- tests/test_features.py
+- tests/test_model.py
+
+Verified result on 2026-10-17:
+  7 passed, 1 harmless joblib warning about physical CPU-core detection.
+
+Coverage includes:
+- Cabin parsing, GroupMemberNumber, TotalSpend, missing values, and no mutation.
+- Saving/reloading a fitted pipeline preserves prediction probabilities.
+- tests/test_model.py uses synthetic data and pytest's temporary directory, so it
+  does not depend on ignored Kaggle data or leave test artifacts behind.
+
+8. FastAPI request schema started
+File: src/spaceship_titanic/schemas.py
+
+PassengerRequest currently includes:
+- PassengerId format validation (example: 0001_01).
+- Allowed HomePlanet and Destination categories.
+- Optional CryoSleep and VIP booleans.
+- Optional Cabin with deck/number/side format validation.
+- Optional Age constrained to 0 through 120.
+- Optional RoomService, FoodCourt, ShoppingMall, Spa, and VRDeck charges, each
+  constrained to be non-negative.
+
+Verified manually:
+- A representative valid passenger is accepted.
+- A real zero is preserved.
+- A missing charge remains None.
+- A negative charge is rejected.
+- The temporary Foodccourt typo was identified; the saved file now correctly uses
+  the exact model column name FoodCourt.
+
+======================================================================
+IMPORTANT CONCEPTS ALREADY COVERED
+======================================================================
+
+- Training versus inference
+- Data leakage and fitting preprocessing inside validation folds
+- Training-serving skew and batch-dependent group features
+- Row-based versus dataset-dependent features
+- sklearn Pipeline, FunctionTransformer, ColumnTransformer, and named branches
+- Per-feature missing-value policies instead of one mechanical rule
+- Dense versus sparse one-hot output
+- Unknown-category handling
+- Stratified holdout and cross-validation
+- Accuracy, precision, recall, F1, ROC-AUC, and confusion matrices
+- Probability ranking versus probability calibration
+- Full-data refitting after honest evaluation
+- Saving/reloading a complete joblib pipeline
+- Metadata and artifact versioning
+- Pydantic request validation and regular-expression basics
+
+Do not restart these lessons unless the student asks for review. Give a brief
+reminder only when a concept becomes relevant to the next implementation step.
+
+======================================================================
+EXACT NEXT TASK
+======================================================================
+
+Continue in tests/test_api.py and api/main.py.
+
+1. Add one focused API validation test proving POST /predict returns HTTP 422 for
+   a misspelled field such as Foodccourt.
+2. Improve safe startup/error behavior so artifact failures do not leak local
+   details, then inspect FastAPI's generated OpenAPI documentation.
+3. Define typed batch request/response schemas and implement POST /predict-batch
+   with a small purposeful integration test.
+4. Do not start Streamlit yet.
+
+The student writes the implementation. Give only the first small action, review
+it, and then continue.
+
+END OF CURRENT CHECKPOINT

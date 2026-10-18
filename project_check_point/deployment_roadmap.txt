@@ -1,0 +1,364 @@
+SPACESHIP TITANIC — PRODUCTION DEPLOYMENT ROADMAP
+Checkpoint date: 2026-10-17
+Project root: /Users/nataliechan/Desktop/projects/spaceship-titanic
+
+PURPOSE OF THIS FILE
+This is the durable project checkpoint. In a later session, read this file first to
+understand the current state, completed work, important decisions, and next task.
+Update the Progress Log and Next Task whenever a milestone is completed.
+
+======================================================================
+1. PROJECT UNDERSTANDING
+======================================================================
+
+Problem:
+- Kaggle Spaceship Titanic is a supervised binary-classification problem.
+- One row represents one passenger.
+- The target, Transported, is True/False.
+- The model uses passenger details, cabin data, CryoSleep status, destination,
+  age, VIP status, and onboard spending to predict Transported.
+
+Current data:
+- data/train.csv: 8,693 rows, 14 columns (includes Transported).
+- data/test.csv: 4,277 rows, 13 columns (no target).
+- There are missing values in both numeric and categorical inputs.
+
+Current implementation:
+- notebooks/spaceship-titanic.ipynb contains the learning walkthrough.
+- src/pipeline.py performs feature engineering, imputation, one-hot encoding,
+  model comparison, holdout evaluation, full-data training, and Kaggle export.
+- Compared models: Logistic Regression, Random Forest, and
+  HistGradientBoostingClassifier.
+- Current best model: HistGradientBoostingClassifier.
+- Verified baseline on 2026-10-14:
+  * 5-fold CV accuracy: 0.8036 (+/- 0.0093)
+  * Holdout accuracy: 0.8079
+  * Submission file: submissions/submission.csv
+
+Useful engineered features already present:
+- Cabin -> Deck and CabinSide
+- PassengerId -> Group
+- Group -> GroupSize
+- Five spending fields -> TotalSpend
+
+======================================================================
+2. IMPORTANT GAPS TO FIX BEFORE DEPLOYMENT
+======================================================================
+
+1. Preprocessing leakage
+   engineer(), impute(), and get_dummies() currently run before cross-validation
+   and the holdout split. Medians, modes, group-derived values, and encoded
+   columns can therefore use information outside a training fold. All learned
+   preprocessing must be fit only on the training portion of each split.
+
+2. Training/serving mismatch
+   GroupSize and group-based HomePlanet/CabinSide imputation are computed from
+   the entire input DataFrame. A single-passenger API request would make
+   GroupSize equal 1 and would have no group-mates available. Choose and document
+   one production policy:
+   - Recommended first version: accept a batch of passengers and compute group
+     features within that batch, while using safe fitted fallbacks for single
+     predictions; or
+   - Store a fitted group lookup from training data and use it only when a known
+     group is supplied, with safe fallbacks for unseen groups.
+   The behavior must be identical during training, testing, API use, and UI use.
+
+3. No saved model artifact
+   The program retrains whenever it runs. Production should train separately,
+   save one versioned preprocessing+model artifact, and load it for inference.
+
+4. No API or UI
+   FastAPI should own prediction logic. Streamlit should be a thin user interface
+   that calls the API rather than duplicating the model code.
+
+5. No automated validation
+   Add unit, integration, schema, and smoke tests before deployment.
+
+6. Reproducibility and repository hygiene
+   Dependencies need production/dev separation or a lock strategy. Add a real
+   .gitignore, configuration, logging, and clear commands. Avoid committing raw
+   competition data or generated model binaries unless licensing and repository
+   size are deliberately handled.
+
+======================================================================
+3. TARGET ARCHITECTURE
+======================================================================
+
+Browser
+  -> Streamlit web app (forms, CSV upload, explanations/results)
+  -> FastAPI service (/health, /model-info, /predict, /predict-batch)
+  -> validated request schema
+  -> saved sklearn preprocessing+model artifact
+  -> prediction and optional probability
+
+Training is a separate offline path:
+  train.csv -> validation + feature transformer + model -> evaluation report
+            -> versioned artifact + metadata
+
+Why separate these paths:
+- Training can be slow and should not happen when the server starts.
+- One shared artifact guarantees the API applies the same transformations used
+  during training.
+- Streamlit can change without retraining, and the model/API can be tested and
+  scaled independently.
+
+======================================================================
+4. STEP-BY-STEP ROADMAP
+======================================================================
+
+PHASE 1 — Establish a professional baseline
+[ ] Create a feature branch for deployment work.
+[x] Add .gitignore for virtual environments, caches, secrets, local data,
+    generated artifacts, notebook checkpoints, and OS files.
+[x] Define a clean package layout, for example:
+      src/spaceship_titanic/
+        __init__.py
+        config.py
+        features.py
+        model.py
+        schemas.py
+      scripts/train.py
+      api/main.py
+      app/streamlit_app.py
+      tests/
+      artifacts/                 (normally generated/ignored)
+[ ] Separate runtime dependencies from development/test dependencies and pin
+    versions reproducibly.
+[ ] Add configuration through environment variables; never hard-code secrets.
+
+Why: predictable structure and dependencies make local work, tests, containers,
+and cloud deployments behave consistently.
+
+PHASE 2 — Refactor preprocessing correctly
+[ ] Define the exact raw input schema and required/optional fields.
+[x] Implement feature engineering as an sklearn-compatible transformer or a
+    deterministic function used inside an sklearn Pipeline.
+[x] Use ColumnTransformer with imputers and OneHotEncoder(handle_unknown="ignore")
+    so unseen categories do not crash production.
+[x] Decide and implement the GroupSize/group-imputation policy described above.
+[x] Fit all learned preprocessing only on each training fold.
+[x] Preserve useful missing-value logic, but make its fit/transform behavior
+    explicit and testable.
+[ ] Add validation for impossible values (negative spend, invalid cabin format,
+    unrealistic age) and define friendly error messages.
+
+Why: the most common production ML failure is different logic at training and
+prediction time. A single fitted pipeline prevents that mismatch and leakage.
+
+PHASE 3 — Create a reproducible training pipeline
+[x] Move model training out of the inference/API code.
+[x] Keep a fixed random seed and stratified train/validation strategy.
+[ ] Evaluate accuracy plus precision, recall, F1, ROC-AUC, confusion matrix, and
+    probability calibration. Accuracy alone does not describe every failure mode.
+[x] Use cross-validation for model selection; keep a final untouched test/holdout
+    set for the last honest estimate.
+[ ] Optionally tune HistGradientBoostingClassifier with RandomizedSearchCV.
+[x] Save the entire fitted pipeline with joblib, not just the classifier.
+[ ] Save metadata beside it: artifact version, training timestamp, data/schema
+    version, feature list, library versions, metrics, decision threshold, and
+    code commit hash.
+[x] Add a command such as `python scripts/train.py` that produces the artifact
+    and evaluation report from scratch.
+
+Why: reproducible training makes a deployed prediction traceable to the exact
+code, data assumptions, and measured model version that created it.
+
+PHASE 4 — Test the ML core
+[ ] Unit-test cabin parsing, PassengerId parsing, TotalSpend, missing values,
+    unseen categories, and invalid inputs.
+[x] Test that raw input is not mutated.
+[x] Test that the saved artifact reloads and returns the same prediction.
+[ ] Test both single-row and batch behavior, especially group features.
+[ ] Add a minimum-metric regression test so an accidental code change cannot
+    silently reduce model quality.
+
+Why: model code often still runs when it is wrong. Tests protect feature meaning,
+schema contracts, and prediction consistency—not only syntax.
+
+PHASE 5 — Build the FastAPI inference service
+[x] Define Pydantic request/response models for single predictions.
+[x] Load the model artifact and metadata once at application startup.
+[ ] Implement:
+      GET  /health         service/model readiness                 [x]
+      GET  /model-info     safe model version and metadata         [x]
+      POST /predict        one passenger                            [x]
+      POST /predict-batch  multiple passengers or uploaded records
+[x] Return prediction, probability, model version, and request ID for /predict.
+[ ] Convert validation/model failures into safe HTTP errors; do not expose stack
+    traces or local paths.
+[ ] Add structured logging without passenger names or other unnecessary personal
+    fields. Never log secrets.
+[ ] Generate and inspect FastAPI's OpenAPI/Swagger documentation.
+[ ] Add API integration tests using FastAPI TestClient/httpx.
+
+Why: a typed API gives every client one stable, documented contract and keeps
+model implementation details out of the UI.
+
+PHASE 6 — Build the Streamlit application
+[ ] Add a friendly single-passenger form with sensible defaults and help text.
+[ ] Add CSV batch upload, preview, schema errors, predictions, and result download.
+[ ] Call FastAPI through an API base URL environment variable; do not import and
+    run a second copy of the model in Streamlit.
+[ ] Show probabilities carefully as model confidence, not certainty.
+[ ] Explain the model, input limitations, validation metrics, and educational
+    nature of this Kaggle dataset.
+[ ] Handle API timeouts/unavailability with helpful messages.
+
+Why: Streamlit is excellent for the human-facing demo, while FastAPI supplies a
+reusable backend for the UI, scripts, tests, or another future frontend.
+
+PHASE 7 — Containerize and run locally as production would
+[ ] Create separate Dockerfiles for API and Streamlit, or one multi-stage setup
+    with two service targets.
+[ ] Run containers as a non-root user, pin a supported Python version, and keep
+    images small.
+[ ] Add docker-compose.yml for local API+UI startup and networking.
+[ ] Add container health checks.
+[ ] Verify the full flow: browser -> Streamlit -> FastAPI -> model -> response.
+[ ] Keep configuration in environment variables and local secrets in an ignored
+    .env file; commit only an .env.example with placeholder values.
+
+Why: containers remove machine-specific surprises and make local and cloud
+environments much closer.
+
+PHASE 8 — Add CI quality gates
+[ ] Configure CI to run formatting/linting, type checks if adopted, unit tests,
+    API integration tests, and a container build on every pull request.
+[ ] Add dependency/security scanning and ensure secrets are not committed.
+[ ] Do not retrain the full model on every tiny code change unless runtime/cost is
+    acceptable; use a fast fixture or smoke model in most CI tests.
+
+Why: automation catches regressions before deployment and makes quality visible.
+
+PHASE 9 — Deploy
+[ ] Choose hosting based on learning goal and budget. A simple initial approach is
+    two services: a container/web service for FastAPI and a Streamlit service for
+    the UI. One platform can host both if it supports the needed processes.
+[ ] Configure the API artifact and environment variables securely.
+[ ] Restrict CORS to the actual Streamlit origin when browser access requires it.
+[ ] Set CPU/memory limits, startup command, health check, and request timeout.
+[ ] Deploy the API first; verify /health, /model-info, and a known prediction.
+[ ] Deploy Streamlit with the production API URL; run an end-to-end smoke test.
+[ ] Document deployed URLs and rollback steps.
+
+Why: deploying in layers makes failures easier to locate and rollback safer.
+
+PHASE 10 — Operate and improve
+[ ] Monitor availability, latency, HTTP error rate, input validation failures, and
+    prediction/class distribution. Do not collect sensitive raw inputs by default.
+[ ] Track model/data versions with every prediction sufficiently for debugging.
+[ ] Since a Kaggle demo has no live labels, document that true production accuracy
+    and drift cannot be measured automatically without later ground truth.
+[ ] Define triggers and a manual process for retraining, evaluation, approval,
+    deployment, and rollback. Do not automatically replace a model only because a
+    new training job finished.
+[ ] Add a model card covering purpose, data, metrics, limitations, and non-goals.
+
+Why: deployment is the beginning of a model lifecycle, not the last step.
+
+======================================================================
+5. DEFINITION OF DONE FOR VERSION 1
+======================================================================
+
+[ ] A fresh clone can be set up from documented commands.
+[x] One command trains, evaluates, and saves a versioned full pipeline artifact.
+[ ] Tests prove preprocessing is leakage-safe and single/batch inference works.
+[ ] FastAPI serves health, metadata, and prediction endpoints with typed schemas.
+[ ] Streamlit supports one passenger and CSV batch prediction through FastAPI.
+[ ] Both services run locally in containers and pass an end-to-end smoke test.
+[ ] CI passes before merge/deployment.
+[ ] A public or private production deployment is healthy and documented.
+[ ] Monitoring, limitations, artifact version, and rollback procedure are recorded.
+
+======================================================================
+6. PROGRESS LOG
+======================================================================
+
+2026-10-14 — Initial assessment completed.
+- Read README.md, src/pipeline.py, requirements.txt, and data schema.
+- Ran the current pipeline successfully.
+- Verified current CV/holdout metrics and generated submission.
+- Identified preprocessing leakage and group-feature serving mismatch as the first
+  technical risks to resolve.
+- Created this production deployment roadmap.
+
+2026-10-14 — Beginner-guided setup lesson completed.
+- Created project_check_point/Instruction.txt to record the tutoring agreement:
+  the student writes project code; the tutor explains, asks questions, reviews,
+  and advances one small step at a time.
+- Created the initial professional directories locally: api, app, artifacts,
+  scripts, tests, and src/spaceship_titanic.
+- Added src/spaceship_titanic/__init__.py to begin the shared Python package.
+- Added .gitignore rules for macOS files, Python caches, virtual environments,
+  local secrets, notebook/test caches, generated artifacts, and local CSV data.
+- Stopped tracking .DS_Store and the three Kaggle CSV files with --cached; the
+  local data remains available and data/README.md remains tracked.
+- Discussed training versus inference, data leakage, training-serving skew,
+  fit versus transform, separation of concerns, and single source of truth.
+- Decision: skip optional .gitkeep placeholder files for now because there is no
+  immediate need to commit the empty directories. They will be tracked when real
+  project files are added.
+- Production feature decision: remove GroupSize from version-one inference. The
+  student initially considered a fitted group lookup, then chose the simpler
+  batch-independent behavior. This prevents the same passenger's prediction from
+  changing based on which other records happen to share an API request. Revisit
+  only as a later measured experiment.
+- Implemented src/spaceship_titanic/features.py with deterministic row-based
+  feature engineering: Deck, numeric CabinNumber, CabinSide, numeric
+  GroupMemberNumber, and TotalSpend. Raw Group and GroupSize are excluded.
+- Verified representative cabins, IDs, missing values, numeric conversions,
+  spending totals, and that the input DataFrame remains unchanged. The manual
+  isolated checks pass.
+- Added six automated pytest tests covering cabin parsing, group-member parsing,
+  partial and fully missing spending, input immutability, and missing identifiers.
+  The missing-identifier test exposed and led to a fix for single-passenger
+  requests with a missing cabin. Verified result: 6 tests pass with no warnings.
+
+2026-10-17 — Leakage-safe model foundation completed.
+- Implemented src/spaceship_titanic/model.py as one complete sklearn Pipeline:
+  deterministic feature engineering, feature-specific ColumnTransformer branches,
+  and HistGradientBoostingClassifier.
+- Replaced the initial one-median-for-all-numerics plan with explicit policies:
+  median for Age, zero for missing spending, native missing handling for
+  CabinNumber, and passthrough for GroupMemberNumber and TotalSpend.
+- Added scripts/train.py with a reproducible stratified holdout and 5-fold CV.
+- Verified mean CV accuracy 0.8043 (+/- 0.0029), holdout accuracy 0.8137,
+  holdout ROC-AUC 0.9120, balanced class metrics, and balanced error counts.
+- Saved and reloaded the complete v1 joblib artifact successfully.
+- Saved JSON metadata with the version, timestamp, training size, threshold, and
+  evaluation metrics. Feature/schema versions, library versions, and commit hash
+  remain future metadata improvements.
+- Added a synthetic-data integration test proving saved/reloaded probabilities
+  are unchanged. Latest result: 7 tests pass; the only warning is harmless CPU
+  core detection from joblib.
+- Began src/spaceship_titanic/schemas.py with PassengerRequest validation for ID,
+  cabin, categories, age, and non-negative spending. The saved FoodCourt field is
+  spelled correctly. FastAPI endpoints have not been started.
+
+2026-10-17 — Typed single-passenger FastAPI inference completed.
+- Configured PassengerRequest to forbid unexpected fields and added focused schema
+  tests for valid data and misspelled input.
+- Added a required PredictionResponse with transported, bounded probability,
+  model version, and request ID fields.
+- Added FastAPI and Uvicorn as pinned direct dependencies.
+- Implemented FastAPI lifespan loading for the saved sklearn pipeline and JSON
+  metadata, using paths resolved from api/main.py rather than the launch directory.
+- Implemented GET /health, GET /model-info, and POST /predict.
+- POST /predict converts one validated request to a one-row DataFrame, uses the
+  saved pipeline probability and metadata decision threshold, and returns a UUID.
+- Added API integration tests for startup/model loading, health, model metadata,
+  and the single-passenger prediction response contract.
+- Verified full result: 12 tests pass. Remaining warnings are the known TestClient
+  deprecation notice and harmless joblib CPU-core detection warning.
+
+Completed milestones: deterministic feature engineering, leakage-safe model
+pipeline, honest evaluation, versioned artifact/metadata, typed single-passenger
+schemas, startup artifact loading, and health/model-info/predict endpoints.
+
+NEXT TASK
+Add one focused API validation test proving POST /predict returns HTTP 422 for an
+unexpected field such as Foodccourt. Then improve safe startup/error behavior,
+inspect the generated OpenAPI docs, and implement POST /predict-batch with typed
+schemas and purposeful tests. Do not start Streamlit yet.
+
+END OF CHECKPOINT
