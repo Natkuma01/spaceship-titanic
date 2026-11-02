@@ -18,7 +18,60 @@ The full write-up with charts and step-by-step explanation is in [`notebooks/spa
 | 1.0 | 2026&#8209;09&#8209;01 | My first attempt at training a machine learning model. I used AI-generated advice extensively to help me learn the workflow and build this project. |
 | 1.1 | 2026&#8209;09&#8209;06 | Added the model training and evaluation step (HistGradientBoostingClassifier), reaching ~81% validation accuracy on the cleaned dataset. |
 | 1.2 | 2026&#8209;09&#8209;09 | <img width="1294" height="260" alt="Screenshot 2026-09-09 at 2 22 32 AM" src="https://github.com/user-attachments/assets/4158a948-0702-46f7-a0b6-9491aa48e247" />
- 
+| 1.3 | 2026&#8209;11&#8209;01 | Added Interface |
+
+
+---
+
+## How to run it
+
+### 1. Clone the repo
+
+    git clone https://github.com/Natkuma01/spaceship-titanic.git
+    cd spaceship-titanic
+
+### 2. Create a virtual environment and install dependencies
+
+    python3 -m venv .venv
+    source .venv/bin/activate        # Windows: .venv\Scripts\activate
+    pip install -r requirements.txt
+
+### 3. Download the data
+
+The CSVs aren't in the repo because of Kaggle's rules. Download them from
+https://www.kaggle.com/competitions/spaceship-titanic/data and put them in `data/`:
+
+    data/train.csv
+    data/test.csv
+    data/sample_submission.csv
+
+### 4. Train the model
+
+This writes the model and its metadata to `artifacts/`.
+
+    PYTHONPATH=src python scripts/train.py
+
+### 5. Start the API (terminal 1)
+
+    PYTHONPATH=src uvicorn api.main:app --reload
+
+- API: http://localhost:8000
+- Interactive docs: http://localhost:8000/docs
+
+### 6. Start the Streamlit app (terminal 2)
+
+    source .venv/bin/activate
+    streamlit run app/streamlit_app.py
+
+Or try the space-themed demo:
+
+    streamlit run app/space_demo.py
+
+The app opens at http://localhost:8501. If the API runs somewhere other than
+`localhost:8000`, set its address first:
+
+    export API_BASE_URL=http://your-api-host:8000
+
 
 
 ---
