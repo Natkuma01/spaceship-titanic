@@ -71,3 +71,28 @@ def test_predict_hides_internal_error_details(monkeypatch):
     assert response.status_code == 500
     assert response.json() == {"detail": "Prediction could not be completed"}
     assert sensitive_message not in response.text
+
+def test_predict_batch():
+    passengers = [
+        {"PassengerId": "0001_01", "FoodCourt": 0},
+        {"PassengerId": "0002_01", "FoodCourt": 100}
+    ]
+    with TestClient(app) as client:
+        response = client.post(
+            "/predict-batch",
+            json={"passengers": passengers}
+        )
+    body = response.json()
+
+    assert response.status_code == 200
+    assert len(body["predictions"]) == 2
+
+    assert body["predictions"][0]["passenger_id"] == "0001_01"
+    assert body["predictions"][1]["passenger_id"] == "0002_01"
+
+    for prediction in body["predictions"]:
+        assert isinstance(prediction["transported"], bool)
+        assert 0 <= prediction["probability"] <= 1
+
+    assert body["model_version"] == "v1"
+    assert "request_id" in body

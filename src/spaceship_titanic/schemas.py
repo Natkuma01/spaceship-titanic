@@ -58,4 +58,23 @@ class PredictionResponse(BaseModel):
     probability: float = Field(ge=0, le=1)
     model_version: str
     request_id: str
+
+
+class BatchPredictionRequest(BaseModel):
+    passengers : list[PassengerRequest] = Field(
+        min_length=1,
+        max_length=100
+    )
+
+
+class BatchPredictionItem(BaseModel):
+    passenger_id: str
+    transported: bool
+    probability: float = Field(ge=0, le=1)
+
+
+class BatchPredictionResponse(BaseModel):
+    predictions: list[BatchPredictionItem]
+    model_version: str
+    request_id: str
     

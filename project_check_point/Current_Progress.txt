@@ -1,5 +1,5 @@
 SPACESHIP TITANIC — CURRENT PROGRESS CHECKPOINT
-Last updated: 2026-10-17
+Last updated: 2026-10-19
 
 HOW TO RESUME
 At the start of a new chat, ask the tutor:
@@ -26,10 +26,12 @@ Turn the original Kaggle notebook/script into a professional application with:
 - Tests, containers, deployment documentation, and basic monitoring
 
 The leakage-safe model pipeline, evaluation script, saved artifact, metadata,
-typed single-passenger schemas, startup artifact loading, and the first three
-FastAPI endpoints are complete. GET /health, GET /model-info, and POST /predict
-work and are covered by focused integration tests. Batch prediction and
-Streamlit have not been implemented yet.
+typed request/response schemas, startup artifact loading, and all four planned
+FastAPI endpoints are complete. GET /health, GET /model-info, POST /predict, and
+POST /predict-batch work and are covered by focused integration tests. Safe
+prediction-error handling is implemented. The Streamlit application now reads
+the API base URL from configuration and reports API health without crashing when
+the API is unavailable. The passenger prediction form has not been started yet.
 
 ======================================================================
 COMPLETED WORK
@@ -166,6 +168,52 @@ Verified manually:
 - The temporary Foodccourt typo was identified; the saved file now correctly uses
   the exact model column name FoodCourt.
 
+9. FastAPI validation, safe prediction errors, and batch schemas
+Files:
+- src/spaceship_titanic/schemas.py
+- api/main.py
+- tests/test_api.py
+
+- Added an integration test proving an unexpected field such as Foodccourt is
+  rejected by POST /predict with HTTP 422.
+- Added an integration test that forces prediction to fail and proves the API
+  returns HTTP 500 with the generic JSON detail "Prediction could not be
+  completed" without exposing the original exception or local artifact path.
+- Added endpoint-level exception handling around single-passenger inference.
+- Confirmed local Uvicorn startup requires this command until the package is
+  installed properly: PYTHONPATH=src uvicorn api.main:app --reload
+- Added BatchPredictionRequest with 1 to 100 PassengerRequest items.
+- Added BatchPredictionItem and BatchPredictionResponse, using one request ID and
+  model version for the whole batch.
+- Added passengers_to_frame in api/main.py and manually verified that two
+  passengers become a two-row, 12-column DataFrame.
+- Added predict_probabilities, which returns positive-class probabilities for all
+  rows.
+- Implemented POST /predict-batch with vectorized inference, metadata thresholding,
+  PassengerId/order preservation, one model version, and one request ID per batch.
+- Added a two-passenger integration test covering the batch response contract.
+- Inspected and verified the generated OpenAPI documentation. The batch route uses
+  BatchPredictionRequest for its request body and BatchPredictionResponse for its
+  HTTP 200 response.
+
+Verified full test result on 2026-10-19:
+  15 passed, with the known TestClient deprecation and harmless joblib CPU-core
+  detection warnings.
+
+10. Initial Streamlit-to-FastAPI connection
+File: app/streamlit_app.py
+
+- Added Streamlit and requests as pinned runtime dependencies.
+- Added a minimal Streamlit page with a title and configurable API base URL.
+- API_BASE_URL defaults to http://localhost:8000 for local development.
+- Added GET /health with a five-second timeout and HTTP status validation.
+- Added friendly connected and unavailable messages.
+- Connection, timeout, HTTP, and invalid-JSON failures do not expose internal
+  exception details or crash the page.
+- Verified the live page displayed "The prediction API is available" while
+  FastAPI returned HTTP 200 with {"status":"ok"}.
+- Verified full test result remains 15 passed.
+
 ======================================================================
 IMPORTANT CONCEPTS ALREADY COVERED
 ======================================================================
@@ -193,15 +241,14 @@ reminder only when a concept becomes relevant to the next implementation step.
 EXACT NEXT TASK
 ======================================================================
 
-Continue in tests/test_api.py and api/main.py.
+Begin the single-passenger Streamlit form in small sections.
 
-1. Add one focused API validation test proving POST /predict returns HTTP 422 for
-   a misspelled field such as Foodccourt.
-2. Improve safe startup/error behavior so artifact failures do not leak local
-   details, then inspect FastAPI's generated OpenAPI documentation.
-3. Define typed batch request/response schemas and implement POST /predict-batch
-   with a small purposeful integration test.
-4. Do not start Streamlit yet.
+1. Add the first input section for passenger identity and journey categories.
+2. Start with PassengerId only, matching the API's required ####_## format and
+   providing concise help text.
+3. Continue with HomePlanet and Destination after reviewing PassengerId.
+4. Do not call POST /predict until the complete form matches PassengerRequest.
+5. Keep Streamlit as a thin API client; do not import the saved model.
 
 The student writes the implementation. Give only the first small action, review
 it, and then continue.

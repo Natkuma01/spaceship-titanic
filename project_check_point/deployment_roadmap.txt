@@ -1,5 +1,5 @@
 SPACESHIP TITANIC — PRODUCTION DEPLOYMENT ROADMAP
-Checkpoint date: 2026-10-17
+Checkpoint date: 2026-10-19
 Project root: /Users/nataliechan/Desktop/projects/spaceship-titanic
 
 PURPOSE OF THIS FILE
@@ -351,14 +351,65 @@ Why: deployment is the beginning of a model lifecycle, not the last step.
 - Verified full result: 12 tests pass. Remaining warnings are the known TestClient
   deprecation notice and harmless joblib CPU-core detection warning.
 
+2026-10-17 — Safe prediction errors and batch API contract completed.
+- Added an API validation test proving POST /predict rejects an unexpected
+  Foodccourt field with HTTP 422.
+- Added safe endpoint-level prediction failure handling. POST /predict now
+  returns a generic HTTP 500 JSON response and does not expose the original
+  exception text or local artifact path.
+- Established the local development command:
+  PYTHONPATH=src uvicorn api.main:app --reload
+  Proper package installation remains a later setup improvement.
+- Added BatchPredictionRequest with a one-to-100-passenger constraint.
+- Added typed BatchPredictionItem and BatchPredictionResponse models.
+- Added and manually verified passengers_to_frame for converting a validated
+  batch into one DataFrame. Added predict_probabilities for vectorized positive-
+  class probability output.
+- Verified full result: 14 tests pass. The two warnings are the known TestClient
+  deprecation and harmless joblib CPU-core detection notices.
+- Exact continuation: import the batch response schemas in api/main.py and add
+  POST /predict-batch after POST /predict. Build one BatchPredictionItem per
+  passenger using matching PassengerId/probability pairs, apply the metadata
+  threshold, and return one model version and UUID for the whole batch. Use the
+  same safe generic HTTP 500 behavior, then add one two-passenger integration
+  test and inspect the finished route in /docs. Do not start Streamlit yet.
+
+2026-10-19 — Batch prediction endpoint completed.
+- Implemented POST /predict-batch with vectorized inference and the typed
+  BatchPredictionResponse contract.
+- Applied the saved metadata decision threshold to every probability while
+  preserving PassengerId values and input order.
+- Used one model version and UUID request ID for the complete batch, with the
+  same generic safe HTTP 500 detail as the single-prediction endpoint.
+- Added a focused two-passenger integration test covering response length,
+  identifiers, Boolean predictions, probability ranges, model version, and
+  request ID.
+- Verified the generated OpenAPI contract: /predict-batch references
+  BatchPredictionRequest for its request body and BatchPredictionResponse for
+  its HTTP 200 response.
+- Verified full result: 15 tests pass. The remaining warnings are the known
+  TestClient deprecation and harmless joblib CPU-core detection notices.
+
+2026-10-19 — Initial Streamlit-to-FastAPI connection completed.
+- Added pinned Streamlit and requests runtime dependencies.
+- Created app/streamlit_app.py with an API_BASE_URL environment setting and a
+  local default of http://localhost:8000.
+- Added a five-second GET /health request with HTTP status checking and safe
+  handling for connection, timeout, HTTP, and invalid-JSON failures.
+- Added friendly available/unavailable UI messages without exposing internal
+  exception details.
+- Started both services locally and visibly verified that Streamlit displayed
+  "The prediction API is available" while FastAPI returned HTTP 200 health data.
+- Verified full result remains 15 tests passing; the warnings are unchanged.
+
 Completed milestones: deterministic feature engineering, leakage-safe model
-pipeline, honest evaluation, versioned artifact/metadata, typed single-passenger
-schemas, startup artifact loading, and health/model-info/predict endpoints.
+pipeline, honest evaluation, versioned artifact/metadata, typed single and batch
+schemas, startup artifact loading, and all four planned FastAPI endpoints.
 
 NEXT TASK
-Add one focused API validation test proving POST /predict returns HTTP 422 for an
-unexpected field such as Foodccourt. Then improve safe startup/error behavior,
-inspect the generated OpenAPI docs, and implement POST /predict-batch with typed
-schemas and purposeful tests. Do not start Streamlit yet.
+Begin the single-passenger Streamlit form. Add only the PassengerId text input
+first, with concise help text describing the required ####_## format. Review it
+before adding HomePlanet and Destination. Do not call POST /predict until the
+complete form matches PassengerRequest, and do not import model code into the UI.
 
 END OF CHECKPOINT

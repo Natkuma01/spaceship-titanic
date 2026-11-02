@@ -5,3 +5,5 @@ uvicorn==0.23.2
 scikit-learn==1.7.2
 matplotlib==3.10.9
 jupyter
+streamlit==1.65.0
+requests==2.34.2
