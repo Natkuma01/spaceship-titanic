@@ -1,0 +1,12 @@
+{
+  "artifact_version": "v1",
+  "trained_at_utc": "2026-10-17T05:38:53.376697+00:00",
+  "training_rows": 8693,
+  "decision_threshold": 0.5,
+  "metrics": {
+    "cv_accuracy_mean": 0.804285101034916,
+    "cv_accuracy_std": 0.0029031879654080523,
+    "holdout_accuracy": 0.8136860264519838,
+    "holdout_roc_auc": 0.911966195230612
+  }
+}

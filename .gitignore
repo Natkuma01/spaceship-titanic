@@ -20,7 +20,8 @@ venv/
 
 # Trained model artifacts
 artifacts/*
-!artifacts/.gitkeep
+!artifacts/spaceship_titanic_pipeline_v1.joblib
+!artifacts/spaceship_titanic_pipeline_v1_metadata.json
 
 # Kaggle data downloaded locally
 data/*.csv
