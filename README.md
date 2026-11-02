@@ -71,9 +71,6 @@ The app opens at http://localhost:8501. If the API runs somewhere other than
 `localhost:8000`, set its address first:
 
     export API_BASE_URL=http://your-api-host:8000
-
-
-
 ---
 
 ## The problem
