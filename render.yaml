@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: spaceship-titanic-api
+    runtime: docker
+    plan: free
+    region: virginia
+    dockerContext: .
+    dockerfilePath: ./Dockerfile.api
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+
+  - type: web
+    name: spaceship-titanic-ui
+    runtime: docker
+    plan: free
+    region: virginia
+    dockerContext: .
+    dockerfilePath: ./Dockerfile.streamlit
+    healthCheckPath: /_stcore/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: API_BASE_URL
+        fromService:
+          type: web
+          name: spaceship-titanic-api
+          envVarKey: RENDER_EXTERNAL_URL
