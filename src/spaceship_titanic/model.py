@@ -93,7 +93,15 @@ model_pipeline = Pipeline(
         ),
         (
             "classifier",
-            HistGradientBoostingClassifier(random_state=42)
+            HistGradientBoostingClassifier(
+                learning_rate=0.026,
+                max_iter=592,
+                max_depth=5,
+                max_leaf_nodes=48,
+                min_samples_leaf=38,
+                l2_regularization=0.027,
+                random_state=42,
+            )
         ),
     ]
 )
