@@ -313,6 +313,15 @@ def test_random_button_fills_a_valid_boarding_pass_id(app, monkeypatch):
     assert not app.error
 
 
+def test_boarding_pass_help_explains_both_parts(app):
+    help_text = _id_input(app).help
+    assert "First 4 digits:** your travel group number" in help_text
+    assert "Last 2 digits:** your number within that group" in help_text
+    assert "01 is the first member" in help_text
+    css = app.markdown[0].value
+    assert '[data-testid="stTooltipContent"]' in css
+
+
 def test_api_down_shows_friendly_message(app):
     _pick_model(app)
     app.button(key="board").click().run()

@@ -153,6 +153,14 @@ p, label, input, .stMarkdown { font-size: 1.2rem; }
     white-space: nowrap;
 }
 
+/* "?" help tooltips. They open outside the form, so this applies to all of them. */
+[data-testid="stTooltipContent"],
+[data-testid="stTooltipContent"] p,
+[data-testid="stTooltipContent"] strong {
+    font-size: 1.1rem !important;
+    line-height: 1.45;
+}
+
 /* Model picker: the radio options are drawn as three cards side by side. */
 .st-key-oracle_picker [data-testid="stWidgetLabel"] p {
     font-size: 1.15rem !important;
@@ -610,6 +618,15 @@ def holdout_chart(data: list[dict]) -> alt.Chart:
     )
 
 
+PASSENGER_ID_HELP = (
+    "Format ####_##, for example 4821_07.\n\n"
+    "**First 4 digits:** your travel group number. "
+    "People travelling together share it.\n\n"
+    "**Last 2 digits:** your number within that group "
+    "(01 is the first member)."
+)
+
+
 def _fill_random_passenger_id():
     st.session_state.passenger_id = random_passenger_id()
 
@@ -630,7 +647,7 @@ with st.form("boarding_pass"):
             passenger_id = st.text_input(
                 "Boarding pass ID",
                 key="passenger_id",
-                help="Format ####_##. The first four digits are your travel group.",
+                help=PASSENGER_ID_HELP,
                 placeholder="0001_01",
             ).strip()
         with random_col:
