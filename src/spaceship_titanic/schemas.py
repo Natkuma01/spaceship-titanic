@@ -5,6 +5,14 @@ from typing import Literal
 from pydantic import BaseModel, Field, ConfigDict
 
 
+# the models a client can choose from (keys of spaceship_titanic.model.MODEL_REGISTRY)
+ModelName = Literal[
+    "logistic_regression",
+    "random_forest",
+    "hist_gradient_boosting",
+]
+
+
 # one passenger submitted for prediction
 class PassengerRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -53,18 +61,38 @@ class PassengerRequest(BaseModel):
     )
 
 
+# one passenger plus the model that should make the prediction
+class PredictionRequest(PassengerRequest):
+    model: ModelName = Field(examples=["hist_gradient_boosting"])
+
+
 class PredictionResponse(BaseModel):
     transported: bool 
     probability: float = Field(ge=0, le=1)
+    model_name: ModelName
     model_version: str
     request_id: str
 
 
 class BatchPredictionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    model: ModelName = Field(examples=["hist_gradient_boosting"])
     passengers : list[PassengerRequest] = Field(
         min_length=1,
         max_length=100
     )
+
+
+class ModelSummary(BaseModel):
+    key: ModelName
+    display_name: str
+    description: str
+    metrics: dict[str, float]
+
+
+class ModelListResponse(BaseModel):
+    models: list[ModelSummary]
 
 
 class BatchPredictionItem(BaseModel):
@@ -75,6 +103,7 @@ class BatchPredictionItem(BaseModel):
 
 class BatchPredictionResponse(BaseModel):
     predictions: list[BatchPredictionItem]
+    model_name: ModelName
     model_version: str
     request_id: str
     

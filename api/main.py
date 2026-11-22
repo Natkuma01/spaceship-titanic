@@ -1,7 +1,17 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI, Request, HTTPException
-from spaceship_titanic.schemas import PassengerRequest, PredictionResponse, BatchPredictionRequest, BatchPredictionItem, BatchPredictionResponse
+from spaceship_titanic.model import MODEL_NAMES, MODEL_REGISTRY
+from spaceship_titanic.schemas import (
+    PassengerRequest,
+    PredictionRequest,
+    PredictionResponse,
+    BatchPredictionRequest,
+    BatchPredictionItem,
+    BatchPredictionResponse,
+    ModelListResponse,
+    ModelSummary,
+)
 from uuid import uuid4
 
 
@@ -13,25 +23,38 @@ import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-ARTIFACT_PATH = (
-    PROJECT_ROOT / "artifacts" / "spaceship_titanic_hist_gradient_boosting_v1.joblib"
-)
+ARTIFACTS_DIR = PROJECT_ROOT / "artifacts"
 
-METADATA_PATH = (
-    PROJECT_ROOT / "artifacts" / "spaceship_titanic_hist_gradient_boosting_v1_metadata.json"
-)
+ARTIFACT_VERSION = "v1"
 
 
-def load_metadata():
-    return json.loads(METADATA_PATH.read_text())
+def artifact_path(model_name: str) -> Path:
+    return ARTIFACTS_DIR / f"spaceship_titanic_{model_name}_{ARTIFACT_VERSION}.joblib"
 
 
-def load_model():
-    return joblib.load(ARTIFACT_PATH)
+def metadata_path(model_name: str) -> Path:
+    return ARTIFACTS_DIR / f"spaceship_titanic_{model_name}_{ARTIFACT_VERSION}_metadata.json"
+
+
+def load_metadata(model_name: str) -> dict:
+    return json.loads(metadata_path(model_name).read_text())
+
+
+def load_model(model_name: str):
+    return joblib.load(artifact_path(model_name))
+
+
+def load_all_models() -> dict:
+    return {model_name: load_model(model_name) for model_name in MODEL_NAMES}
+
+
+def load_all_metadata() -> dict:
+    return {model_name: load_metadata(model_name) for model_name in MODEL_NAMES}
 
 
 def passenger_to_frame(passenger: PassengerRequest) -> pd.DataFrame:
-    passenger_dict = passenger.model_dump()
+    # the model choice is not a passenger feature
+    passenger_dict = passenger.model_dump(exclude={"model"})
     return pd.DataFrame([passenger_dict])
 
 
@@ -58,8 +81,8 @@ def predict_probabilities(model, batch:BatchPredictionRequest) -> list[float]:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.model = load_model()
-    app.state.metadata = load_metadata()
+    app.state.models = load_all_models()
+    app.state.metadata = load_all_metadata()
     yield
 
 
@@ -74,16 +97,33 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/models", response_model=ModelListResponse)
+def list_models(request: Request) -> ModelListResponse:
+    all_metadata = request.app.state.metadata
+    return ModelListResponse(
+        models=[
+            ModelSummary(
+                key=model_name,
+                display_name=MODEL_REGISTRY[model_name]["display_name"],
+                description=MODEL_REGISTRY[model_name]["description"],
+                metrics=all_metadata[model_name]["metrics"],
+            )
+            for model_name in MODEL_NAMES
+        ]
+    )
+
+
 @app.get("/model-info")
 def model_info(request: Request):
     return request.app.state.metadata
 
 
 @app.post("/predict", response_model=PredictionResponse)
-def predict(passenger: PassengerRequest, request: Request) -> PredictionResponse:
+def predict(passenger: PredictionRequest, request: Request) -> PredictionResponse:
+    model_name = passenger.model
     try:
         probability = predict_probability(
-            request.app.state.model,
+            request.app.state.models[model_name],
             passenger
     )
     except Exception:
@@ -92,13 +132,14 @@ def predict(passenger: PassengerRequest, request: Request) -> PredictionResponse
             detail="Prediction could not be completed"
         ) from None
     
-    metadata = request.app.state.metadata
+    metadata = request.app.state.metadata[model_name]
     threshold = metadata["decision_threshold"]
     model_version = metadata["artifact_version"]
 
     return PredictionResponse(
         transported = probability >= threshold,
         probability = probability,
+        model_name = model_name,
         model_version = model_version,
         request_id = str(uuid4())
     )
@@ -106,9 +147,10 @@ def predict(passenger: PassengerRequest, request: Request) -> PredictionResponse
 
 @app.post("/predict-batch", response_model=BatchPredictionResponse)
 def predict_batch(batch: BatchPredictionRequest, request: Request) -> BatchPredictionResponse:
+    model_name = batch.model
     try:
         probabilities = predict_probabilities(
-            request.app.state.model,
+            request.app.state.models[model_name],
             batch
         )
     except Exception:
@@ -117,7 +159,7 @@ def predict_batch(batch: BatchPredictionRequest, request: Request) -> BatchPredi
             detail="Prediction could not be completed"
         ) from None
 
-    metadata = request.app.state.metadata
+    metadata = request.app.state.metadata[model_name]
     threshold = metadata["decision_threshold"]
     model_version = metadata["artifact_version"]
 
@@ -132,6 +174,7 @@ def predict_batch(batch: BatchPredictionRequest, request: Request) -> BatchPredi
 
     return BatchPredictionResponse(
         predictions=predictions,
+        model_name=model_name,
         model_version=model_version,
         request_id=str(uuid4())
     )
