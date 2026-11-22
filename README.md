@@ -7,7 +7,7 @@ This is my newbie 🍼 ML project on the [Kaggle Spaceship Titanic](https://www.
 ### Please feel free to leave me any comments (or 📩 👉 natkuma@outlook.com) on how to improve this project, I'm super new to this topic, your advice will be VERY helpful for my learning journey!!
 # 
 
-**Best model:** HistGradientBoosting, about **81% accuracy** (holdout and 5-fold cross-validation), which is in the same range as strong public solutions for this competition.
+**Best model:** HistGradientBoosting, about **82% holdout accuracy** (80.5% with 5-fold cross-validation), which is in the same range as strong public solutions for this competition. The API and app let you pick any of three models; see [The three models](#the-three-models).
 
 The full write-up with charts and step-by-step explanation is in [`notebooks/spaceship-titanic.ipynb`](notebooks/spaceship-titanic.ipynb). A clean script version is in [`src/pipeline.py`](src/pipeline.py).
 
@@ -47,10 +47,24 @@ https://www.kaggle.com/competitions/spaceship-titanic/data and put them in `data
 
 ### 4. Train the models
 
-This trains Logistic Regression, Random Forest and HistGradientBoosting, and
-writes each model and its metadata to `artifacts/`.
+`python scripts/train.py` trains all three models (Logistic Regression, Random
+Forest and HistGradientBoosting), scores each one, and writes each model and its
+metadata to `artifacts/`. Run it from the project root with `src` on the import
+path:
 
     PYTHONPATH=src python scripts/train.py
+
+It writes one model file and one metadata file per model:
+
+    artifacts/spaceship_titanic_logistic_regression_v1.joblib
+    artifacts/spaceship_titanic_logistic_regression_v1_metadata.json
+    artifacts/spaceship_titanic_random_forest_v1.joblib
+    artifacts/spaceship_titanic_random_forest_v1_metadata.json
+    artifacts/spaceship_titanic_hist_gradient_boosting_v1.joblib
+    artifacts/spaceship_titanic_hist_gradient_boosting_v1_metadata.json
+
+Each metadata file records the model name, version, training time, decision
+threshold, and its accuracy scores.
 
 ### 5. Start the API (terminal 1)
 
@@ -59,17 +73,59 @@ writes each model and its metadata to `artifacts/`.
 - API: http://localhost:8000
 - Interactive docs: http://localhost:8000/docs
 
+The API loads all three models at startup.
+
+| Endpoint | What it does |
+| --- | --- |
+| `GET /health` | Returns `{"status": "ok"}` |
+| `GET /models` | Lists the three models: `key`, `display_name`, `description` and `metrics` |
+| `GET /model-info` | Full saved metadata for every model, keyed by model name |
+| `POST /predict` | Predicts one passenger |
+| `POST /predict-batch` | Predicts 1 to 100 passengers in one call |
+
+Both prediction endpoints now **require** a `model` field. It must be one of
+`logistic_regression`, `random_forest` or `hist_gradient_boosting`; a missing
+or unknown value is rejected with HTTP 422.
+
+    curl -X POST http://localhost:8000/predict \
+      -H "Content-Type: application/json" \
+      -d '{
+            "PassengerId": "0001_01",
+            "HomePlanet": "Europa",
+            "CryoSleep": false,
+            "Cabin": "B/0/P",
+            "Destination": "TRAPPIST-1e",
+            "Age": 39,
+            "VIP": false,
+            "RoomService": 0,
+            "FoodCourt": 0,
+            "ShoppingMall": 0,
+            "Spa": 0,
+            "VRDeck": 0,
+            "model": "hist_gradient_boosting"
+          }'
+
+    curl -X POST http://localhost:8000/predict-batch \
+      -H "Content-Type: application/json" \
+      -d '{
+            "model": "random_forest",
+            "passengers": [
+              {"PassengerId": "0001_01", "HomePlanet": "Europa", "Age": 39},
+              {"PassengerId": "0002_01", "HomePlanet": "Earth", "CryoSleep": true}
+            ]
+          }'
+
+The response includes `model_name`, so you can see which model answered.
+
 ### 6. Start the Streamlit app (terminal 2)
 
     source .venv/bin/activate
     streamlit run app/streamlit_app.py
 
-Or try the space-themed demo:
-
-    streamlit run app/space_demo.py
-
-The app opens at http://localhost:8501. If the API runs somewhere other than
-`localhost:8000`, set its address first:
+The app opens at http://localhost:8501. Pick a model before boarding; the app
+shows its description and holdout accuracy, plus a table and bar chart comparing
+all three models (from `GET /models`, or a built-in copy if the API is offline).
+If the API runs somewhere other than `localhost:8000`, set its address first:
 
     export API_BASE_URL=http://your-api-host:8000
 
@@ -83,8 +139,28 @@ two Docker web services and connects the UI to the deployed API automatically.
 3. Review the two services and apply the Blueprint.
 4. Open the `spaceship-titanic-ui` URL after both deploys are healthy.
 
-The Blueprint uses Render's free plan. Free services sleep after periods of
+The API image includes all three model files from `artifacts/`, so commit
+them (or retrain) before deploying. The Blueprint uses Render's free plan. Free services sleep after periods of
 inactivity, so the first visit after a pause can take longer to load.
+---
+
+## The three models
+
+| Key (`model` field) | Name | Description |
+| --- | --- | --- |
+| `logistic_regression` | Logistic Regression | Straightforward method to predict whether a passenger was transported |
+| `random_forest` | Random Forest | Combine many decision trees, learn patterns in passenger details |
+| `hist_gradient_boosting` | HistGradientBoosting | Build trees in stages, each tree learning from earlier mistakes |
+
+Scores from `scripts/train.py` (5-fold cross-validation on the 80% training
+split, then a 20% holdout the model never saw):
+
+| Model | CV accuracy (mean ± std) | Holdout accuracy | Holdout ROC-AUC |
+| --- | --- | --- | --- |
+| Logistic Regression | 78.9% ± 0.4% | 79.0% | 88.2% |
+| Random Forest | 80.2% ± 0.6% | 81.2% | 89.5% |
+| HistGradientBoosting | **80.5% ± 0.5%** | **81.9%** | **91.2%** |
+
 ---
 
 ## The problem
