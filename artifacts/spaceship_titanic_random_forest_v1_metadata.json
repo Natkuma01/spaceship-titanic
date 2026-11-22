@@ -1,0 +1,14 @@
+{
+  "model_name": "random_forest",
+  "display_name": "Random Forest",
+  "artifact_version": "v1",
+  "trained_at_utc": "2026-11-22T00:36:12.803961+00:00",
+  "training_rows": 8693,
+  "decision_threshold": 0.5,
+  "metrics": {
+    "cv_accuracy_mean": 0.80212962053075,
+    "cv_accuracy_std": 0.00642891481272452,
+    "holdout_accuracy": 0.81196089706728,
+    "holdout_roc_auc": 0.8946974026042742
+  }
+}
