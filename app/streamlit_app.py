@@ -249,6 +249,15 @@ p, label, input, .stMarkdown { font-size: 1.2rem; }
     letter-spacing: 0.04em;
     margin: 0.2rem 0 1rem;
 }
+.track-legend {
+    margin: 0.4rem 0 1rem;
+}
+.track-legend .track-note {
+    margin: 0 0 0.15rem;
+}
+.track-legend .track-label {
+    color: var(--glow);
+}
 
 .stButton button, [data-testid="stFormSubmitButton"] button {
     font-family: 'VT323', monospace !important;
@@ -501,7 +510,7 @@ st.markdown('<div class="panel-title">▸ ORACLE</div>', unsafe_allow_html=True)
 
 with st.container(key="oracle_picker"):
     model_key = st.radio(
-        "Which oracle should read your fate?",
+        "🚨 Which oracle should read your fate? (Required)",
         options=list(MODELS),
         index=None,
         horizontal=True,
@@ -656,6 +665,21 @@ with st.form("boarding_pass"):
     )
 
 
+TRACK_LEGEND = [
+    ("CV accuracy", "average score from 5-fold cross validation on the training data."),
+    ("Holdout accuracy", "share of correct guesses on 20% of passengers held back from training."),
+    ("Holdout ROC-AUC", "how well the model ranks transported above not transported (1.0 is perfect)."),
+]
+
+
+def track_legend_html():
+    lines = "".join(
+        f'<div class="track-note"><span class="track-label">{label}:</span> {text}</div>'
+        for label, text in TRACK_LEGEND
+    )
+    return f'<div class="track-legend">{lines}</div>'
+
+
 # The verdict goes right under the form; the track record sits below it.
 results = st.container()
 
@@ -674,6 +698,7 @@ if any(row["Holdout accuracy"] != "—" for row in table_rows):
     chart_data = holdout_chart_data(MODELS, model_key)
     if chart_data:
         st.altair_chart(holdout_chart(chart_data), width="stretch")
+    st.markdown(track_legend_html(), unsafe_allow_html=True)
 
 
 with results:

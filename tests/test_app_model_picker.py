@@ -81,3 +81,18 @@ def test_track_record_has_one_short_explanation_line(app):
         "passengers it never saw.</div>"
     ) in html
     assert not any("cross-validation" in c.value for c in app.caption)
+
+
+def test_track_record_legend_explains_each_number(app):
+    html = "".join(md.value for md in app.markdown)
+    assert '<div class="track-legend">' in html
+    for label, text in [
+        ("CV accuracy", "average score from 5-fold cross validation on the training data."),
+        ("Holdout accuracy", "share of correct guesses on 20% of passengers held back from training."),
+        ("Holdout ROC-AUC", "how well the model ranks transported above not transported (1.0 is perfect)."),
+    ]:
+        assert (
+            f'<div class="track-note"><span class="track-label">{label}:</span> {text}</div>'
+        ) in html
+    css = app.markdown[0].value
+    assert ".track-legend .track-label" in css
