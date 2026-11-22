@@ -134,19 +134,120 @@ p, label, input, .stMarkdown { font-size: 1.2rem; }
     font-size: 1.05rem !important;
 }
 
-/* Bigger text in the model picker section only (was 14px). */
+/* Model picker: the radio options are drawn as three cards side by side. */
 .st-key-oracle_picker [data-testid="stWidgetLabel"] p {
     font-size: 1.15rem !important;
 }
-.st-key-oracle_picker [role="radiogroup"] label p {
-    font-size: 1.1rem !important;
+.st-key-oracle_picker [role="radiogroup"] {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.8rem;
+    align-items: stretch !important;
+    width: 100%;
+}
+/* each option (label + caption) is one card */
+.st-key-oracle_picker [role="radiogroup"] > div {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    align-self: stretch;
+    box-sizing: border-box;
+    min-width: 0;
+    margin: 0 !important;
+    padding: 1rem 0.6rem 1.1rem;
+    cursor: pointer;
+    background: rgba(8, 12, 30, 0.75);
+    border: 1px solid rgba(124, 247, 255, 0.35);
+    border-radius: 10px;
+    box-shadow: 0 0 18px rgba(124, 247, 255, 0.08);
+    opacity: 0.7;
+    transition: opacity 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+.st-key-oracle_picker [data-testid="stRadioOption"] {
+    width: 100%;
+    margin: 0 !important;
+    padding: 0 !important;
+    justify-content: center;
+    cursor: pointer;
+}
+/* stretch the clickable label over the whole card, caption included */
+.st-key-oracle_picker [data-testid="stRadioOption"]::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: 10px;
+}
+.st-key-oracle_picker [data-testid="stRadioOption"] > div {
+    width: 100%;
+    justify-content: center;
+}
+/* hide the radio dot; the whole card is the control */
+.st-key-oracle_picker [data-testid="stRadioOption"] > div > div:first-child {
+    display: none !important;
+}
+.st-key-oracle_picker [role="radiogroup"] > div:hover {
+    opacity: 0.95;
+    border-color: rgba(124, 247, 255, 0.7);
+    box-shadow: 0 0 22px rgba(124, 247, 255, 0.25);
+}
+/* keyboard focus ring; the picked card already stands out, so skip it there */
+.st-key-oracle_picker [role="radiogroup"] > div:has(input:focus-visible):not(:has(input:checked)) {
+    outline: 2px dashed rgba(124, 247, 255, 0.8);
+    outline-offset: 3px;
+}
+.st-key-oracle_picker [data-testid="stRadioOption"] [data-testid="stMarkdownContainer"] p {
+    color: var(--glow);
+    font-size: 1.35rem !important;
+    letter-spacing: 0.04em;
+    overflow-wrap: anywhere;
+    line-height: 1.2;
+    text-align: center;
+    margin: 0;
+}
+.st-key-oracle_picker [data-testid="stRadioCaption"] {
+    width: 100%;
+    padding: 0 !important;
+    margin: 0.5rem 0 0 !important;
+}
+.st-key-oracle_picker [data-testid="stRadioCaption"] p {
+    color: var(--ink);
+    font-size: 1.05rem !important;
+    line-height: 1.35;
+    text-align: center;
+    margin: 0;
+}
+.st-key-oracle_picker [role="radiogroup"] > div:has(input:checked) {
+    opacity: 1;
+    border: 1px solid var(--gold);
+    background: rgba(40, 30, 5, 0.55);
+    box-shadow: 0 0 0 1px var(--gold), 0 0 28px rgba(255, 215, 94, 0.5),
+                inset 0 0 18px rgba(255, 215, 94, 0.12);
+    transform: translateY(-2px);
+}
+.st-key-oracle_picker [role="radiogroup"] > div:has(input:checked) [data-testid="stRadioOption"] [data-testid="stMarkdownContainer"] p {
+    color: var(--gold);
+    text-shadow: 0 0 12px rgba(255, 215, 94, 0.6);
 }
 .st-key-oracle_picker [data-testid="stCaptionContainer"],
 .st-key-oracle_picker [data-testid="stCaptionContainer"] p {
     font-size: 1.05rem !important;
 }
-.st-key-oracle_picker [role="radiogroup"] label {
-    margin-bottom: 0.4rem;
+@media (max-width: 640px) {
+    .st-key-oracle_picker [role="radiogroup"] {
+        grid-template-columns: 1fr;
+    }
+}
+
+.track-note {
+    font-family: 'VT323', monospace;
+    font-size: 1.1rem;
+    color: var(--ink);
+    opacity: 0.85;
+    letter-spacing: 0.04em;
+    margin: 0.2rem 0 1rem;
 }
 
 .stButton button, [data-testid="stFormSubmitButton"] button {
@@ -403,6 +504,7 @@ with st.container(key="oracle_picker"):
         "Which oracle should read your fate?",
         options=list(MODELS),
         index=None,
+        horizontal=True,
         format_func=lambda key: MODELS[key]["display_name"],
         captions=[MODELS[key]["description"] for key in MODELS],
     )
@@ -563,14 +665,15 @@ if any(row["Holdout accuracy"] != "—" for row in table_rows):
         '<div class="panel-title">▸ ORACLE TRACK RECORD</div>',
         unsafe_allow_html=True,
     )
+    st.markdown(
+        '<div class="track-note">How often each oracle guessed right on '
+        "passengers it never saw.</div>",
+        unsafe_allow_html=True,
+    )
     st.markdown(metrics_table_html(table_rows, model_key), unsafe_allow_html=True)
     chart_data = holdout_chart_data(MODELS, model_key)
     if chart_data:
         st.altair_chart(holdout_chart(chart_data), width="stretch")
-    st.caption(
-        "CV accuracy is the 5-fold cross-validation mean ± std on the training "
-        "split; holdout scores come from passengers the model never saw."
-    )
 
 
 with results:

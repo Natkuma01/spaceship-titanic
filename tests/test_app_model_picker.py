@@ -30,6 +30,9 @@ def picker(at):
 def test_picker_lists_every_model_with_its_description(app):
     radio = picker(app)
 
+    # laid out side by side so the CSS can draw each option as a card
+    assert radio.proto.horizontal
+
     assert radio.options == [m["display_name"] for m in FALLBACK_MODELS.values()]
     captions = list(radio.proto.captions)
     assert captions == [m["description"] for m in FALLBACK_MODELS.values()]
@@ -49,3 +52,32 @@ def test_picking_a_model_unlocks_boarding_and_shows_its_accuracy(app):
     html = "".join(md.value for md in app.markdown)
     assert "Random Forest holdout accuracy" in html
     assert '<tr class="picked"><td>▸ Random Forest</td>' in html
+
+
+@pytest.mark.parametrize("model_key", list(FALLBACK_MODELS))
+def test_each_card_can_be_picked(app, model_key):
+    picker(app).set_value(model_key).run()
+
+    assert not app.exception
+    assert picker(app).value == model_key
+    assert not app.button[0].proto.disabled
+    html = "".join(md.value for md in app.markdown)
+    name = FALLBACK_MODELS[model_key]["display_name"]
+    assert f"{name} holdout accuracy" in html
+
+
+def test_picker_cards_are_styled(app):
+    css = app.markdown[0].value
+    assert '.st-key-oracle_picker [role="radiogroup"]' in css
+    assert "grid-template-columns: repeat(3, minmax(0, 1fr))" in css
+    assert ':has(input:checked)' in css
+    assert "@media (max-width: 640px)" in css
+
+
+def test_track_record_has_one_short_explanation_line(app):
+    html = "".join(md.value for md in app.markdown)
+    assert (
+        '<div class="track-note">How often each oracle guessed right on '
+        "passengers it never saw.</div>"
+    ) in html
+    assert not any("cross-validation" in c.value for c in app.caption)
