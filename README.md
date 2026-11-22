@@ -129,20 +129,6 @@ If the API runs somewhere other than `localhost:8000`, set its address first:
 
     export API_BASE_URL=http://your-api-host:8000
 
-### Deploy on Render
-
-The included [`render.yaml`](render.yaml) deploys the API and Streamlit UI as
-two Docker web services and connects the UI to the deployed API automatically.
-
-1. Push this repository to GitHub.
-2. In Render, create a new Blueprint and select this repository.
-3. Review the two services and apply the Blueprint.
-4. Open the `spaceship-titanic-ui` URL after both deploys are healthy.
-
-The API image includes all three model files from `artifacts/`, so commit
-them (or retrain) before deploying. The Blueprint uses Render's free plan. Free services sleep after periods of
-inactivity, so the first visit after a pause can take longer to load.
----
 
 ## The three models
 
