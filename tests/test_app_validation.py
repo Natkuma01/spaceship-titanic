@@ -1,5 +1,6 @@
 """Tests for the boarding form checks and the friendly API error messages."""
 
+import re
 import typing
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from validation import (
     REQUIRED_FIELDS,
     api_error_message,
     form_error_message,
+    random_passenger_id,
     rejected_fields,
     validate_payload,
 )
@@ -161,6 +163,31 @@ def test_missing_and_invalid_are_reported_together():
     assert "Please fix: Age: use an age from 0 to 120." in message
 
 
+# --- random boarding pass ---------------------------------------------------
+
+def test_random_passenger_id_has_the_right_format():
+    for _ in range(500):
+        passenger_id = random_passenger_id()
+        assert re.match(validation.PASSENGER_ID_PATTERN, passenger_id)
+        group, member = passenger_id.split("_")
+        assert len(group) == 4 and 0 <= int(group) <= 9999
+        assert len(member) == 2 and 1 <= int(member) <= 10
+        PredictionRequest(PassengerId=passenger_id, model="random_forest")
+
+
+class _EdgeRng:
+    def __init__(self, pick):
+        self.pick = pick
+
+    def randint(self, low, high):
+        return low if self.pick == "low" else high
+
+
+def test_random_passenger_id_covers_the_whole_range():
+    assert random_passenger_id(_EdgeRng("low")) == "0000_01"
+    assert random_passenger_id(_EdgeRng("high")) == "9999_10"
+
+
 # --- API errors -------------------------------------------------------------
 
 def test_422_names_the_rejected_fields_by_their_labels():
@@ -236,7 +263,7 @@ def test_empty_boarding_pass_id_blocks_boarding(app, monkeypatch):
     calls = _no_api_calls(monkeypatch)
     _pick_model(app)
     _id_input(app).set_value("")
-    app.button[0].click().run()
+    app.button(key="board").click().run()
 
     assert not app.exception
     assert [e.value for e in app.error] == ["Please fill in: Boarding pass ID."]
@@ -248,7 +275,7 @@ def test_badly_formed_boarding_pass_id_blocks_boarding(app, monkeypatch):
     calls = _no_api_calls(monkeypatch)
     _pick_model(app)
     _id_input(app).set_value("12-34")
-    app.button[0].click().run()
+    app.button(key="board").click().run()
 
     assert not app.exception
     assert app.error[0].value.startswith("Please fix: Boarding pass ID")
@@ -265,16 +292,30 @@ def test_blank_spending_is_sent_as_unknown(app, monkeypatch):
 
     monkeypatch.setattr(requests, "post", fake_post)
     _pick_model(app)
-    app.button[0].click().run()
+    app.button(key="board").click().run()
 
     assert not app.exception
     assert [e.value for e in app.error] == [CONNECTION_MESSAGE]
     assert [sent[0][field] for field in validation.SPEND_FIELDS] == [None] * 5
 
 
+def test_random_button_fills_a_valid_boarding_pass_id(app, monkeypatch):
+    calls = _no_api_calls(monkeypatch)
+    _id_input(app).set_value("")
+    app.button(key="board")  # still there
+    random_button = next(b for b in app.button if "Random" in b.label)
+    random_button.click().run()
+
+    assert not app.exception
+    new_id = _id_input(app).value
+    assert re.match(r"^\d{4}_(0[1-9]|10)$", new_id)
+    assert calls == []
+    assert not app.error
+
+
 def test_api_down_shows_friendly_message(app):
     _pick_model(app)
-    app.button[0].click().run()
+    app.button(key="board").click().run()
 
     assert not app.exception
     assert [e.value for e in app.error] == [CONNECTION_MESSAGE]
@@ -310,7 +351,7 @@ def test_api_errors_show_friendly_messages(app, monkeypatch, status_code, body, 
         requests, "post", lambda *a, **k: _FakeResponse(status_code, body)
     )
     _pick_model(app)
-    app.button[0].click().run()
+    app.button(key="board").click().run()
 
     assert not app.exception
     assert [e.value for e in app.error] == [expected]

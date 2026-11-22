@@ -21,6 +21,7 @@ from validation import (
     TIMEOUT_MESSAGE,
     api_error_message,
     form_error_message,
+    random_passenger_id,
     validate_payload,
 )
 
@@ -140,6 +141,16 @@ p, label, input, .stMarkdown { font-size: 1.2rem; }
 [data-testid="stForm"] [data-testid="stCaptionContainer"] p,
 [data-testid="stForm"] [data-testid="stFormSubmitButton"] button p {
     font-size: 1.05rem !important;
+}
+
+/* keep the Random button's label on one line in narrow columns */
+.st-key-random_id button {
+    padding-left: 0.4rem !important;
+    padding-right: 0.4rem !important;
+    min-width: 0;
+}
+.st-key-random_id button p {
+    white-space: nowrap;
 }
 
 /* Model picker: the radio options are drawn as three cards side by side. */
@@ -599,6 +610,10 @@ def holdout_chart(data: list[dict]) -> alt.Chart:
     )
 
 
+def _fill_random_passenger_id():
+    st.session_state.passenger_id = random_passenger_id()
+
+
 with st.form("boarding_pass"):
     st.markdown('<div class="panel-title">▸ IDENTITY</div>', unsafe_allow_html=True)
 
@@ -610,12 +625,22 @@ with st.form("boarding_pass"):
             placeholder="Captain Nobody",
         )
     with col2:
-        passenger_id = st.text_input(
-            "Boarding pass ID",
-            value=st.session_state.passenger_id,
-            help="Format ####_##. The first four digits are your travel group.",
-            placeholder="0001_01",
-        ).strip()
+        id_col, random_col = st.columns([2, 1], vertical_alignment="bottom")
+        with id_col:
+            passenger_id = st.text_input(
+                "Boarding pass ID",
+                key="passenger_id",
+                help="Format ####_##. The first four digits are your travel group.",
+                placeholder="0001_01",
+            ).strip()
+        with random_col:
+            # a form can only hold submit buttons; this one just refills the ID
+            st.form_submit_button(
+                "🎲 Random",
+                key="random_id",
+                on_click=_fill_random_passenger_id,
+                width="stretch",
+            )
         passenger_id_hint = st.empty()
 
     col1, col2 = st.columns(2)
@@ -687,6 +712,7 @@ with st.form("boarding_pass"):
 
     launch = st.form_submit_button(
         "🚀  BOARD THE SHIP",
+        key="board",
         disabled=model_key is None,
     )
 

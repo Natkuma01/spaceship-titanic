@@ -5,6 +5,7 @@ here (not imported) because the Streamlit image only ships the app folder;
 tests/test_app_validation.py checks that the two stay in step.
 """
 
+import random
 import re
 
 
@@ -47,6 +48,11 @@ FIELD_HINTS = {
     "VIP": "turn it on or off",
     **{field: "use 0 or more credits" for field in SPEND_FIELDS},
 }
+
+
+def random_passenger_id(rng=random) -> str:
+    """A random boarding pass ID: 4-digit group (0000-9999), "_", member 01-10."""
+    return f"{rng.randint(0, 9999):04d}_{rng.randint(1, 10):02d}"
 
 
 def label(field: str) -> str:

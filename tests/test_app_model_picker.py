@@ -40,7 +40,7 @@ def test_picker_lists_every_model_with_its_description(app):
 
 def test_no_model_is_picked_at_start_and_boarding_is_locked(app):
     assert picker(app).value is None
-    assert app.button[0].proto.disabled
+    assert app.button(key="board").proto.disabled
     assert any("Choose a model above" in c.value for c in app.caption)
 
 
@@ -48,7 +48,7 @@ def test_picking_a_model_unlocks_boarding_and_shows_its_accuracy(app):
     picker(app).set_value("random_forest").run()
 
     assert not app.exception
-    assert not app.button[0].proto.disabled
+    assert not app.button(key="board").proto.disabled
     html = "".join(md.value for md in app.markdown)
     assert "Random Forest holdout accuracy" in html
     assert '<tr class="picked"><td>▸ Random Forest</td>' in html
@@ -60,7 +60,7 @@ def test_each_card_can_be_picked(app, model_key):
 
     assert not app.exception
     assert picker(app).value == model_key
-    assert not app.button[0].proto.disabled
+    assert not app.button(key="board").proto.disabled
     html = "".join(md.value for md in app.markdown)
     name = FALLBACK_MODELS[model_key]["display_name"]
     assert f"{name} holdout accuracy" in html
