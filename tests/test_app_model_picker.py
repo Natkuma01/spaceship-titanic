@@ -24,7 +24,7 @@ def app(monkeypatch):
 
 
 def picker(at):
-    return next(radio for radio in at.radio if radio.label == PICKER_LABEL)
+    return next(radio for radio in at.radio if PICKER_LABEL in radio.label)
 
 
 def test_picker_lists_every_model_with_its_description(app):

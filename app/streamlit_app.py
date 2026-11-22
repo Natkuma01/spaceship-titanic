@@ -15,6 +15,14 @@ from model_metrics import (
     metrics_table_rows,
     models_from_api,
 )
+from validation import (
+    BAD_REPLY_MESSAGE,
+    CONNECTION_MESSAGE,
+    TIMEOUT_MESSAGE,
+    api_error_message,
+    form_error_message,
+    validate_payload,
+)
 
 
 api_base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
@@ -377,6 +385,14 @@ p, label, input, .stMarkdown { font-size: 1.2rem; }
     text-shadow: 0 0 10px rgba(255, 215, 94, 0.45);
 }
 
+.field-error {
+    font-family: 'VT323', monospace;
+    color: #ff8a8a;
+    font-size: 1.05rem;
+    letter-spacing: 0.04em;
+    margin: -0.4rem 0 0.4rem;
+}
+
 .footnote {
     text-align: center;
     font-size: 1rem;
@@ -598,7 +614,9 @@ with st.form("boarding_pass"):
             "Boarding pass ID",
             value=st.session_state.passenger_id,
             help="Format ####_##. The first four digits are your travel group.",
-        )
+            placeholder="0001_01",
+        ).strip()
+        passenger_id_hint = st.empty()
 
     col1, col2 = st.columns(2)
     with col1:
@@ -727,6 +745,22 @@ with results:
             "model": model_key,
         }
 
+        problems = validate_payload(payload)
+        if "PassengerId" in problems["missing"]:
+            passenger_id_hint.markdown(
+                '<div class="field-error">⚠ Required</div>', unsafe_allow_html=True
+            )
+        elif "PassengerId" in problems["invalid"]:
+            passenger_id_hint.markdown(
+                '<div class="field-error">⚠ Use the format 0001_01</div>',
+                unsafe_allow_html=True,
+            )
+        form_error = form_error_message(problems)
+        if form_error:
+            st.error(form_error, icon="🛂")
+            st.stop()
+
+        passenger_id = escape(passenger_id)
         name = escape(traveller_name.strip() or "Passenger " + passenger_id)
 
         with st.status("Departing...", expanded=True) as voyage:
@@ -738,37 +772,48 @@ with results:
             time.sleep(1.0)
             st.write("🌀 **SPACETIME ANOMALY DETECTED**. Consulting the oracle...")
 
+            # (status label, message) when the oracle can't answer
+            failure = None
             try:
                 prediction_response = requests.post(
                     f"{api_base_url}/predict", json=payload, timeout=10
                 )
-                if prediction_response.status_code == 422:
-                    voyage.update(label="Boarding denied", state="error")
-                    st.error(
-                        "The gate scanner rejected your boarding pass. "
-                        "Check the ID format (####_##)."
-                    )
-                    st.stop()
-                prediction_response.raise_for_status()
-                prediction_data = prediction_response.json()
             except requests.exceptions.Timeout:
-                voyage.update(label="Transmission lost", state="error")
-                st.error("The prediction API took too long to respond.")
-                st.stop()
+                failure = ("Transmission lost", TIMEOUT_MESSAGE)
             except requests.exceptions.ConnectionError:
-                voyage.update(label="Transmission lost", state="error")
-                st.error("Cannot connect to the prediction API.")
-                st.stop()
-            except (requests.exceptions.RequestException, ValueError):
-                voyage.update(label="Transmission lost", state="error")
-                st.error("The prediction could not be completed.")
-                st.stop()
+                failure = ("Transmission lost", CONNECTION_MESSAGE)
+            except requests.exceptions.RequestException:
+                failure = ("Transmission lost", api_error_message(500))
+            else:
+                if not prediction_response.ok:
+                    try:
+                        error_body = prediction_response.json()
+                    except ValueError:
+                        error_body = None
+                    status_code = prediction_response.status_code
+                    failure = (
+                        "Boarding denied" if status_code == 422 else "Transmission lost",
+                        api_error_message(status_code, error_body),
+                    )
+                else:
+                    try:
+                        prediction_data = prediction_response.json()
+                        transported = bool(prediction_data["transported"])
+                        probability = float(prediction_data["probability"])
+                    except (ValueError, KeyError, TypeError, AttributeError):
+                        failure = ("Transmission lost", BAD_REPLY_MESSAGE)
 
-            time.sleep(0.6)
-            voyage.update(label="Voyage complete", state="complete", expanded=False)
+            if failure:
+                voyage.update(label=failure[0], state="error", expanded=False)
+            else:
+                time.sleep(0.6)
+                voyage.update(label="Voyage complete", state="complete", expanded=False)
 
-        transported = prediction_data["transported"]
-        probability = prediction_data["probability"]
+        # shown outside the status box so it is never hidden when the box collapses
+        if failure:
+            st.error(failure[1], icon="📡")
+            st.stop()
+
         used_model = prediction_data.get("model_name", model_key)
         oracle_name = escape(
             MODELS.get(used_model, {}).get("display_name", used_model)
