@@ -24,7 +24,12 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     copy_df["GroupMemberNumber"] = copy_df["PassengerId"].str.split("_").str[1]
     copy_df["GroupMemberNumber"] = pd.to_numeric(copy_df["GroupMemberNumber"], errors="coerce")
 
+    # API requests turn missing numbers into None, which gives object columns;
+    # make them real numbers (NaN when missing) so every imputer sees them
     spend_values = copy_df[SPEND_COLS].apply(pd.to_numeric, errors="coerce")
+    copy_df[SPEND_COLS] = spend_values
+    if "Age" in copy_df:
+        copy_df["Age"] = pd.to_numeric(copy_df["Age"], errors="coerce")
     copy_df["TotalSpend"] = spend_values.fillna(0).sum(axis=1)
 
     return copy_df

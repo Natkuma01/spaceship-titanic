@@ -86,3 +86,13 @@ def test_engineer_features_accepts_missing_identifiers() -> None:
     assert pd.isna(result.loc[0, "CabinNumber"])
     assert pd.isna(result.loc[0, "CabinSide"])
     assert pd.isna(result.loc[0, "GroupMemberNumber"])
+
+
+def test_engineer_features_makes_missing_numbers_numeric() -> None:
+    """None values from API requests become numeric NaN, not object values."""
+    result = engineer_features(make_passenger(Age=None, RoomService=None, Spa=None))
+
+    assert pd.api.types.is_numeric_dtype(result["Age"])
+    assert pd.api.types.is_numeric_dtype(result["RoomService"])
+    assert pd.api.types.is_numeric_dtype(result["Spa"])
+    assert pd.isna(result.loc[0, "RoomService"])
