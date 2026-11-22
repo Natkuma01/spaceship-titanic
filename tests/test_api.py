@@ -1,9 +1,11 @@
 import pytest
+import pandas as pd
 from fastapi.testclient import TestClient
 from api.main import app 
 
 import api.main as api_main
 from spaceship_titanic.model import MODEL_NAMES, MODEL_REGISTRY
+from spaceship_titanic.schemas import PassengerRequest
 
 
 EXPECTED_DESCRIPTIONS = {
@@ -183,3 +185,81 @@ def test_predict_batch_rejects_unknown_model(client):
         json={"model": "xgboost", "passengers": [{"PassengerId": "0001_01"}]}
     )
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize("endpoint", ["/predict", "/predict-batch"])
+@pytest.mark.parametrize("bad_model", [None, "", "Random Forest", "RANDOM_FOREST"])
+def test_rejects_null_empty_or_misspelled_model(client, endpoint, bad_model):
+    passenger = {"PassengerId": "0001_01", "FoodCourt": 0}
+    if endpoint == "/predict":
+        body = {**passenger, "model": bad_model}
+    else:
+        body = {"model": bad_model, "passengers": [passenger]}
+
+    response = client.post(endpoint, json=body)
+    assert response.status_code == 422
+
+
+SAMPLE_PASSENGER = {
+    "PassengerId": "0013_01",
+    "HomePlanet": "Europa",
+    "CryoSleep": False,
+    "Cabin": "B/12/S",
+    "Destination": "55 Cancri e",
+    "Age": 34,
+    "VIP": False,
+    "RoomService": 0,
+    "FoodCourt": 1800,
+    "ShoppingMall": 40,
+    "Spa": 650,
+    "VRDeck": 300,
+}
+
+
+def expected_probability(model_name, passenger=SAMPLE_PASSENGER):
+    """What that model's loaded pipeline says, called directly."""
+    # fill in the optional columns the same way the request schema does
+    frame = pd.DataFrame([PassengerRequest(**passenger).model_dump()])
+    return float(app.state.models[model_name].predict_proba(frame)[0, 1])
+
+
+def test_predict_uses_the_requested_model(client):
+    probabilities = {}
+    for model_name in MODEL_NAMES:
+        response = client.post(
+            "/predict", json={**SAMPLE_PASSENGER, "model": model_name}
+        )
+        assert response.status_code == 200
+        body = response.json()
+
+        assert body["model_name"] == model_name
+        assert body["probability"] == pytest.approx(
+            expected_probability(model_name), abs=1e-12
+        )
+        threshold = app.state.metadata[model_name]["decision_threshold"]
+        assert body["transported"] == (body["probability"] >= threshold)
+        probabilities[model_name] = body["probability"]
+
+    # the three models really are different, so a mix-up would show
+    assert len({round(p, 9) for p in probabilities.values()}) >= 2
+
+
+def test_predict_batch_uses_the_requested_model(client):
+    second = {**SAMPLE_PASSENGER, "PassengerId": "0014_01", "CryoSleep": True,
+              "FoodCourt": 0, "Spa": 0, "VRDeck": 0, "ShoppingMall": 0}
+    results = {}
+    for model_name in MODEL_NAMES:
+        response = client.post(
+            "/predict-batch",
+            json={"model": model_name, "passengers": [SAMPLE_PASSENGER, second]},
+        )
+        assert response.status_code == 200
+        body = response.json()
+
+        assert body["model_name"] == model_name
+        got = [p["probability"] for p in body["predictions"]]
+        want = [expected_probability(model_name, p) for p in (SAMPLE_PASSENGER, second)]
+        assert got == pytest.approx(want, abs=1e-12)
+        results[model_name] = tuple(round(p, 9) for p in got)
+
+    assert len(set(results.values())) >= 2
