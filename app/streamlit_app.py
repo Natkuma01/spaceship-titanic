@@ -3,8 +3,18 @@ import random
 import time
 from html import escape
 
+import altair as alt
 import requests
 import streamlit as st
+
+from model_metrics import (
+    FALLBACK_MODELS,
+    format_percent,
+    holdout_chart_data,
+    metrics_table_html,
+    metrics_table_rows,
+    models_from_api,
+)
 
 
 api_base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
@@ -189,6 +199,42 @@ p, label, input, .stMarkdown { font-size: 1.2rem; }
     100% { transform: scale(1); }
 }
 
+.oracle-stat {
+    font-family: 'VT323', monospace;
+    color: var(--gold);
+    font-size: 1.2rem;
+    letter-spacing: 0.08em;
+    margin: -0.6rem 0 1rem;
+}
+
+.metrics-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'VT323', monospace;
+    font-size: 1.15rem;
+    color: var(--ink);
+    background: rgba(8, 12, 30, 0.75);
+    border: 1px solid rgba(124, 247, 255, 0.35);
+    margin-bottom: 0.8rem;
+}
+.metrics-table th, .metrics-table td {
+    font-family: 'VT323', monospace !important;
+    padding: 0.35rem 0.6rem;
+    text-align: right;
+    border-bottom: 1px solid rgba(124, 247, 255, 0.15);
+}
+.metrics-table th:first-child, .metrics-table td:first-child { text-align: left; }
+.metrics-table th {
+    color: var(--glow);
+    letter-spacing: 0.12em;
+    font-weight: normal;
+}
+.metrics-table tr.picked td {
+    color: var(--gold);
+    background: rgba(255, 215, 94, 0.1);
+    text-shadow: 0 0 10px rgba(255, 215, 94, 0.45);
+}
+
 .footnote {
     text-align: center;
     font-size: 1rem;
@@ -225,23 +271,6 @@ DECK_LORE = {
 }
 
 
-# used when the API can't list its models; matches the API's /models endpoint
-FALLBACK_MODELS = {
-    "logistic_regression": {
-        "display_name": "Logistic Regression",
-        "description": "Straightforward method to predict whether a passenger was transported",
-    },
-    "random_forest": {
-        "display_name": "Random Forest",
-        "description": "Combine many decision trees, learn patterns in passenger details",
-    },
-    "hist_gradient_boosting": {
-        "display_name": "HistGradientBoosting",
-        "description": "Build trees in stages, each tree learning from earlier mistakes",
-    },
-}
-
-
 try:
     response = requests.get(f"{api_base_url}/health", timeout=5)
     api_online = response.ok and response.json().get("status") == "ok"
@@ -253,13 +282,7 @@ def fetch_models() -> dict:
     try:
         models_response = requests.get(f"{api_base_url}/models", timeout=5)
         models_response.raise_for_status()
-        return {
-            model["key"]: {
-                "display_name": model["display_name"],
-                "description": model["description"],
-            }
-            for model in models_response.json()["models"]
-        }
+        return models_from_api(models_response.json())
     except (requests.exceptions.RequestException, ValueError, KeyError, TypeError):
         return FALLBACK_MODELS
 
@@ -357,6 +380,82 @@ else:
     st.markdown(
         f'<div class="crawl">{escape(MODELS[model_key]["description"])}</div>',
         unsafe_allow_html=True,
+    )
+    picked_holdout = MODELS[model_key].get("metrics", {}).get("holdout_accuracy")
+    if picked_holdout is not None:
+        st.markdown(
+            f'<div class="oracle-stat">◆ Holdout accuracy: '
+            f"{format_percent(picked_holdout)}</div>",
+            unsafe_allow_html=True,
+        )
+
+
+def holdout_chart(data: list[dict]) -> alt.Chart:
+    bars = (
+        alt.Chart(alt.Data(values=data))
+        .mark_bar(cornerRadiusEnd=3)
+        .encode(
+            x=alt.X(
+                "Holdout accuracy:Q",
+                title="Holdout accuracy",
+                scale=alt.Scale(domain=[0, 100]),
+                axis=alt.Axis(tickCount=5, labelExpr="datum.value + '%'"),
+            ),
+            y=alt.Y(
+                "Model:N",
+                title=None,
+                sort=None,
+                axis=alt.Axis(labelLimit=220, ticks=False),
+            ),
+            color=alt.condition(
+                alt.datum.Picked,
+                alt.value("#ffd75e"),
+                alt.value("#7cf7ff"),
+            ),
+            opacity=alt.condition(alt.datum.Picked, alt.value(1.0), alt.value(0.55)),
+            tooltip=[
+                alt.Tooltip("Model:N"),
+                alt.Tooltip(
+                    "Holdout accuracy:Q", format=".1f", title="Holdout accuracy (%)"
+                ),
+            ],
+        )
+    )
+    labels = bars.mark_text(align="left", dx=5, font="VT323", fontSize=17).encode(
+        text=alt.Text("Holdout accuracy:Q", format=".1f"),
+        color=alt.condition(alt.datum.Picked, alt.value("#ffd75e"), alt.value("#d9e6ff")),
+        opacity=alt.value(1.0),
+        tooltip=alt.value(None),
+    )
+    return (
+        (bars + labels)
+        .properties(height=alt.Step(34))
+        .configure(background="transparent", font="VT323")
+        .configure_axis(
+            labelColor="#d9e6ff",
+            titleColor="#7cf7ff",
+            labelFontSize=16,
+            titleFontSize=15,
+            gridColor="rgba(124, 247, 255, 0.12)",
+            domainColor="rgba(124, 247, 255, 0.35)",
+        )
+        .configure_view(strokeWidth=0)
+    )
+
+
+table_rows = metrics_table_rows(MODELS)
+if any(row["Holdout accuracy"] != "—" for row in table_rows):
+    st.markdown(
+        '<div class="panel-title">▸ ORACLE TRACK RECORD</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(metrics_table_html(table_rows, model_key), unsafe_allow_html=True)
+    chart_data = holdout_chart_data(MODELS, model_key)
+    if chart_data:
+        st.altair_chart(holdout_chart(chart_data), width="stretch")
+    st.caption(
+        "CV accuracy is the 5-fold cross-validation mean ± std on the training "
+        "split; holdout scores come from passengers the model never saw."
     )
 
 
