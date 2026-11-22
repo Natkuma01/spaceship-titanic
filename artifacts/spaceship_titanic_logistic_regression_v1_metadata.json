@@ -1,0 +1,14 @@
+{
+  "model_name": "logistic_regression",
+  "display_name": "Logistic Regression",
+  "artifact_version": "v1",
+  "trained_at_utc": "2026-11-22T00:36:09.949444+00:00",
+  "training_rows": 8693,
+  "decision_threshold": 0.5,
+  "metrics": {
+    "cv_accuracy_mean": 0.7886112677076168,
+    "cv_accuracy_std": 0.003809065621718025,
+    "holdout_accuracy": 0.78953421506613,
+    "holdout_roc_auc": 0.8816766932808456
+  }
+}

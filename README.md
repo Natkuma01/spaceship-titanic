@@ -45,9 +45,10 @@ https://www.kaggle.com/competitions/spaceship-titanic/data and put them in `data
     data/test.csv
     data/sample_submission.csv
 
-### 4. Train the model
+### 4. Train the models
 
-This writes the model and its metadata to `artifacts/`.
+This trains Logistic Regression, Random Forest and HistGradientBoosting, and
+writes each model and its metadata to `artifacts/`.
 
     PYTHONPATH=src python scripts/train.py
 

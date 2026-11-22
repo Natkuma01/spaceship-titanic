@@ -1,6 +1,8 @@
 {
+  "model_name": "hist_gradient_boosting",
+  "display_name": "HistGradientBoosting",
   "artifact_version": "v1",
-  "trained_at_utc": "2026-11-22T00:10:45.206727+00:00",
+  "trained_at_utc": "2026-11-22T00:36:22.459611+00:00",
   "training_rows": 8693,
   "decision_threshold": 0.5,
   "metrics": {

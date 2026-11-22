@@ -14,11 +14,11 @@ import pandas as pd
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 ARTIFACT_PATH = (
-    PROJECT_ROOT / "artifacts" / "spaceship_titanic_pipeline_v1.joblib"
+    PROJECT_ROOT / "artifacts" / "spaceship_titanic_hist_gradient_boosting_v1.joblib"
 )
 
 METADATA_PATH = (
-    PROJECT_ROOT / "artifacts" / "spaceship_titanic_pipeline_v1_metadata.json"
+    PROJECT_ROOT / "artifacts" / "spaceship_titanic_hist_gradient_boosting_v1_metadata.json"
 )
 
 
