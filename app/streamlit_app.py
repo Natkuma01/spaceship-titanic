@@ -134,6 +134,21 @@ p, label, input, .stMarkdown { font-size: 1.2rem; }
     font-size: 1.05rem !important;
 }
 
+/* Bigger text in the model picker section only (was 14px). */
+.st-key-oracle_picker [data-testid="stWidgetLabel"] p {
+    font-size: 1.15rem !important;
+}
+.st-key-oracle_picker [role="radiogroup"] label p {
+    font-size: 1.1rem !important;
+}
+.st-key-oracle_picker [data-testid="stCaptionContainer"],
+.st-key-oracle_picker [data-testid="stCaptionContainer"] p {
+    font-size: 1.05rem !important;
+}
+.st-key-oracle_picker [role="radiogroup"] label {
+    margin-bottom: 0.4rem;
+}
+
 .stButton button, [data-testid="stFormSubmitButton"] button {
     font-family: 'VT323', monospace !important;
     letter-spacing: 0.2em;
@@ -221,7 +236,7 @@ p, label, input, .stMarkdown { font-size: 1.2rem; }
     color: var(--gold);
     font-size: 1.2rem;
     letter-spacing: 0.08em;
-    margin: -0.6rem 0 1rem;
+    margin: 0.2rem 0 1rem;
 }
 
 .metrics-table {
@@ -383,28 +398,25 @@ if "passenger_id" not in st.session_state:
 
 st.markdown('<div class="panel-title">▸ ORACLE</div>', unsafe_allow_html=True)
 
-model_key = st.selectbox(
-    "Which oracle should read your fate?",
-    options=list(MODELS),
-    index=None,
-    placeholder="Choose a model",
-    format_func=lambda key: MODELS[key]["display_name"],
-)
-
-if model_key is None:
-    st.caption("🔒 Choose a model above before you can board the ship.")
-else:
-    st.markdown(
-        f'<div class="crawl">{escape(MODELS[model_key]["description"])}</div>',
-        unsafe_allow_html=True,
+with st.container(key="oracle_picker"):
+    model_key = st.radio(
+        "Which oracle should read your fate?",
+        options=list(MODELS),
+        index=None,
+        format_func=lambda key: MODELS[key]["display_name"],
+        captions=[MODELS[key]["description"] for key in MODELS],
     )
-    picked_holdout = MODELS[model_key].get("metrics", {}).get("holdout_accuracy")
-    if picked_holdout is not None:
-        st.markdown(
-            f'<div class="oracle-stat">◆ Holdout accuracy: '
-            f"{format_percent(picked_holdout)}</div>",
-            unsafe_allow_html=True,
-        )
+
+    if model_key is None:
+        st.caption("🔒 Choose a model above before you can board the ship.")
+    else:
+        picked_holdout = MODELS[model_key].get("metrics", {}).get("holdout_accuracy")
+        if picked_holdout is not None:
+            st.markdown(
+                f'<div class="oracle-stat">◆ {escape(MODELS[model_key]["display_name"])} '
+                f"holdout accuracy: {format_percent(picked_holdout)}</div>",
+                unsafe_allow_html=True,
+            )
 
 
 def holdout_chart(data: list[dict]) -> alt.Chart:
@@ -457,22 +469,6 @@ def holdout_chart(data: list[dict]) -> alt.Chart:
             domainColor="rgba(124, 247, 255, 0.35)",
         )
         .configure_view(strokeWidth=0)
-    )
-
-
-table_rows = metrics_table_rows(MODELS)
-if any(row["Holdout accuracy"] != "—" for row in table_rows):
-    st.markdown(
-        '<div class="panel-title">▸ ORACLE TRACK RECORD</div>',
-        unsafe_allow_html=True,
-    )
-    st.markdown(metrics_table_html(table_rows, model_key), unsafe_allow_html=True)
-    chart_data = holdout_chart_data(MODELS, model_key)
-    if chart_data:
-        st.altair_chart(holdout_chart(chart_data), width="stretch")
-    st.caption(
-        "CV accuracy is the 5-fold cross-validation mean ± std on the training "
-        "split; holdout scores come from passengers the model never saw."
     )
 
 
@@ -558,119 +554,138 @@ with st.form("boarding_pass"):
     )
 
 
-if launch and model_key is None:
-    st.warning("Choose a model above before boarding.")
-    st.stop()
+# The verdict goes right under the form; the track record sits below it.
+results = st.container()
 
-
-if launch:
-    spending = [room_service, food_court, shopping_mall, spa, vr_deck]
-    if cryo_sleep:
-        spending = [0, 0, 0, 0, 0]
-
-    payload = {
-        "PassengerId": passenger_id,
-        "HomePlanet": home_planet,
-        "CryoSleep": cryo_sleep,
-        "Cabin": f"{cabin_deck}/{cabin_number}/{cabin_side}",
-        "Destination": destination,
-        "Age": age,
-        "VIP": vip,
-        "RoomService": spending[0],
-        "FoodCourt": spending[1],
-        "ShoppingMall": spending[2],
-        "Spa": spending[3],
-        "VRDeck": spending[4],
-        "model": model_key,
-    }
-
-    name = escape(traveller_name.strip() or "Passenger " + passenger_id)
-
-    with st.status("Departing...", expanded=True) as voyage:
-        st.write(f"🛫 Leaving the orbit of {home_planet}...")
-        time.sleep(0.8)
-        st.write("🌌 Cruising at 0.6c. All systems nominal...")
-        time.sleep(0.8)
-        st.write("⚠️ Rounding Alpha Centauri. Sensors report an unidentified dust cloud...")
-        time.sleep(1.0)
-        st.write("🌀 **SPACETIME ANOMALY DETECTED**. Consulting the oracle...")
-
-        try:
-            prediction_response = requests.post(
-                f"{api_base_url}/predict", json=payload, timeout=10
-            )
-            if prediction_response.status_code == 422:
-                voyage.update(label="Boarding denied", state="error")
-                st.error(
-                    "The gate scanner rejected your boarding pass. "
-                    "Check the ID format (####_##)."
-                )
-                st.stop()
-            prediction_response.raise_for_status()
-            prediction_data = prediction_response.json()
-        except requests.exceptions.Timeout:
-            voyage.update(label="Transmission lost", state="error")
-            st.error("The prediction API took too long to respond.")
-            st.stop()
-        except requests.exceptions.ConnectionError:
-            voyage.update(label="Transmission lost", state="error")
-            st.error("Cannot connect to the prediction API.")
-            st.stop()
-        except (requests.exceptions.RequestException, ValueError):
-            voyage.update(label="Transmission lost", state="error")
-            st.error("The prediction could not be completed.")
-            st.stop()
-
-        time.sleep(0.6)
-        voyage.update(label="Voyage complete", state="complete", expanded=False)
-
-    transported = prediction_data["transported"]
-    probability = prediction_data["probability"]
-    used_model = prediction_data.get("model_name", model_key)
-    oracle_name = escape(
-        MODELS.get(used_model, {}).get("display_name", used_model)
-    )
-
-    if transported:
-        st.markdown(
-            f"""
-            <div class="verdict void">
-                <div class="mono">MANIFEST UPDATE · {passenger_id}</div>
-                <h2>YOU HAVE VANISHED</h2>
-                <p>
-                The anomaly folded around your cabin, and <b>{name}</b> was
-                pulled into another dimension. Your seat on the shuttle to
-                {destination} stays empty.
-                </p>
-                <div class="big">{probability:.0%}</div>
-                <div class="mono">ANOMALY RESONANCE</div>
-                <div class="mono">ORACLE · {oracle_name}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    else:
-        st.markdown(
-            f"""
-            <div class="verdict stay">
-                <div class="mono">MANIFEST UPDATE · {passenger_id}</div>
-                <h2>YOU REMAIN IN THIS DIMENSION</h2>
-                <p>
-                The anomaly passed through the hull, but <b>{name}</b> stayed
-                put. You step off the ship at <b>{destination}</b>, shaken but
-                whole, still wondering where everyone else went.
-                </p>
-                <div class="big">{probability:.0%}</div>
-                <div class="mono">ANOMALY RESONANCE</div>
-                <div class="mono">ORACLE · {oracle_name}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
+table_rows = metrics_table_rows(MODELS)
+if any(row["Holdout accuracy"] != "—" for row in table_rows):
     st.markdown(
-        '<div class="footnote">Anomaly resonance is the model\'s estimated '
-        "probability of being transported. It is an estimate, not a "
-        "prophecy.</div>",
+        '<div class="panel-title">▸ ORACLE TRACK RECORD</div>',
         unsafe_allow_html=True,
     )
+    st.markdown(metrics_table_html(table_rows, model_key), unsafe_allow_html=True)
+    chart_data = holdout_chart_data(MODELS, model_key)
+    if chart_data:
+        st.altair_chart(holdout_chart(chart_data), width="stretch")
+    st.caption(
+        "CV accuracy is the 5-fold cross-validation mean ± std on the training "
+        "split; holdout scores come from passengers the model never saw."
+    )
+
+
+with results:
+    if launch and model_key is None:
+        st.warning("Choose a model above before boarding.")
+        st.stop()
+
+    if launch:
+        spending = [room_service, food_court, shopping_mall, spa, vr_deck]
+        if cryo_sleep:
+            spending = [0, 0, 0, 0, 0]
+
+        payload = {
+            "PassengerId": passenger_id,
+            "HomePlanet": home_planet,
+            "CryoSleep": cryo_sleep,
+            "Cabin": f"{cabin_deck}/{cabin_number}/{cabin_side}",
+            "Destination": destination,
+            "Age": age,
+            "VIP": vip,
+            "RoomService": spending[0],
+            "FoodCourt": spending[1],
+            "ShoppingMall": spending[2],
+            "Spa": spending[3],
+            "VRDeck": spending[4],
+            "model": model_key,
+        }
+
+        name = escape(traveller_name.strip() or "Passenger " + passenger_id)
+
+        with st.status("Departing...", expanded=True) as voyage:
+            st.write(f"🛫 Leaving the orbit of {home_planet}...")
+            time.sleep(0.8)
+            st.write("🌌 Cruising at 0.6c. All systems nominal...")
+            time.sleep(0.8)
+            st.write("⚠️ Rounding Alpha Centauri. Sensors report an unidentified dust cloud...")
+            time.sleep(1.0)
+            st.write("🌀 **SPACETIME ANOMALY DETECTED**. Consulting the oracle...")
+
+            try:
+                prediction_response = requests.post(
+                    f"{api_base_url}/predict", json=payload, timeout=10
+                )
+                if prediction_response.status_code == 422:
+                    voyage.update(label="Boarding denied", state="error")
+                    st.error(
+                        "The gate scanner rejected your boarding pass. "
+                        "Check the ID format (####_##)."
+                    )
+                    st.stop()
+                prediction_response.raise_for_status()
+                prediction_data = prediction_response.json()
+            except requests.exceptions.Timeout:
+                voyage.update(label="Transmission lost", state="error")
+                st.error("The prediction API took too long to respond.")
+                st.stop()
+            except requests.exceptions.ConnectionError:
+                voyage.update(label="Transmission lost", state="error")
+                st.error("Cannot connect to the prediction API.")
+                st.stop()
+            except (requests.exceptions.RequestException, ValueError):
+                voyage.update(label="Transmission lost", state="error")
+                st.error("The prediction could not be completed.")
+                st.stop()
+
+            time.sleep(0.6)
+            voyage.update(label="Voyage complete", state="complete", expanded=False)
+
+        transported = prediction_data["transported"]
+        probability = prediction_data["probability"]
+        used_model = prediction_data.get("model_name", model_key)
+        oracle_name = escape(
+            MODELS.get(used_model, {}).get("display_name", used_model)
+        )
+
+        if transported:
+            st.markdown(
+                f"""
+                <div class="verdict void">
+                    <div class="mono">MANIFEST UPDATE · {passenger_id}</div>
+                    <h2>YOU HAVE VANISHED</h2>
+                    <p>
+                    The anomaly folded around your cabin, and <b>{name}</b> was
+                    pulled into another dimension. Your seat on the shuttle to
+                    {destination} stays empty.
+                    </p>
+                    <div class="big">{probability:.0%}</div>
+                    <div class="mono">ANOMALY RESONANCE</div>
+                    <div class="mono">ORACLE · {oracle_name}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                f"""
+                <div class="verdict stay">
+                    <div class="mono">MANIFEST UPDATE · {passenger_id}</div>
+                    <h2>YOU REMAIN IN THIS DIMENSION</h2>
+                    <p>
+                    The anomaly passed through the hull, but <b>{name}</b> stayed
+                    put. You step off the ship at <b>{destination}</b>, shaken but
+                    whole, still wondering where everyone else went.
+                    </p>
+                    <div class="big">{probability:.0%}</div>
+                    <div class="mono">ANOMALY RESONANCE</div>
+                    <div class="mono">ORACLE · {oracle_name}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        st.markdown(
+            '<div class="footnote">Anomaly resonance is the model\'s estimated '
+            "probability of being transported. It is an estimate, not a "
+            "prophecy.</div>",
+            unsafe_allow_html=True,
+        )
