@@ -1,12 +1,14 @@
 """Integration test for the complete model pipeline."""
 
 import joblib
+import pytest
 import numpy as np
 import pandas as pd
 from pathlib import Path
 from sklearn.base import clone
+from sklearn.ensemble import HistGradientBoostingClassifier
 
-from spaceship_titanic.model import model_pipeline
+from spaceship_titanic.model import MODEL_NAMES, build_pipeline, model_pipeline
 
 # Create a small dataset for pipeline integration tests
 def make_training_data() -> tuple[pd.DataFrame, pd.Series]:
@@ -61,3 +63,37 @@ def test_saved_pipeline_preserves_probabilities(
         actual_probabilities,
         expected_probabilities,
     )
+
+@pytest.mark.parametrize("model_name", MODEL_NAMES)
+def test_each_pipeline_fits_and_predicts(model_name: str) -> None:
+    """Every registered model fits and predicts on a small sample."""
+    passengers, transported = make_training_data()
+
+    pipeline = build_pipeline(model_name)
+    pipeline.fit(passengers, transported)
+
+    predictions = pipeline.predict(passengers)
+    probabilities = pipeline.predict_proba(passengers)
+
+    assert len(predictions) == len(passengers)
+    assert probabilities.shape == (len(passengers), 2)
+    assert np.all((probabilities >= 0) & (probabilities <= 1))
+
+
+def test_registry_has_three_models() -> None:
+    assert set(MODEL_NAMES) == {
+        "logistic_regression",
+        "random_forest",
+        "hist_gradient_boosting",
+    }
+
+
+def test_build_pipeline_rejects_unknown_model() -> None:
+    with pytest.raises(ValueError):
+        build_pipeline("not_a_model")
+
+
+def test_model_pipeline_is_hist_gradient_boosting() -> None:
+    classifier = model_pipeline.named_steps["classifier"]
+    assert isinstance(classifier, HistGradientBoostingClassifier)
+    assert classifier.max_iter == 592
