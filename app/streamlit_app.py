@@ -668,14 +668,22 @@ with st.form("boarding_pass"):
     if cryo_sleep:
         st.caption("❄️ You'll be frozen, so you won't be spending anything.")
 
+    st.caption("Optional: leave any of these blank if you don't know.")
+
+    def spend_input(label):
+        # blank (None) is sent as "unknown" and the model fills it in
+        return st.number_input(
+            label, min_value=0, value=None, step=50, placeholder="Optional"
+        )
+
     col1, col2 = st.columns(2)
     with col1:
-        room_service = st.slider("🛎️ Room service", 0, 5000, 0, step=50)
-        food_court = st.slider("🍜 Food court", 0, 5000, 0, step=50)
-        shopping_mall = st.slider("🛍️ Promenade shops", 0, 5000, 0, step=50)
+        room_service = spend_input("🛎️ Room service")
+        food_court = spend_input("🍜 Food court")
+        shopping_mall = spend_input("🛍️ Promenade shops")
     with col2:
-        spa = st.slider("💆 Zero-G spa", 0, 5000, 0, step=50)
-        vr_deck = st.slider("🕶️ VR deck", 0, 5000, 0, step=50)
+        spa = spend_input("💆 Zero-G spa")
+        vr_deck = spend_input("🕶️ VR deck")
 
     launch = st.form_submit_button(
         "🚀  BOARD THE SHIP",

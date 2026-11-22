@@ -111,6 +111,27 @@ def test_optional_fields_may_be_left_out():
     assert validate_payload(payload) == {"missing": [], "invalid": []}
 
 
+@pytest.mark.parametrize("field", validation.SPEND_FIELDS)
+@pytest.mark.parametrize("blank", [None, ""])
+def test_blank_spending_is_fine(field, blank):
+    problems = validate_payload({**FULL_PAYLOAD, field: blank})
+    assert problems == {"missing": [], "invalid": []}
+    assert form_error_message(problems) is None
+
+
+def test_all_spending_blank_is_accepted_by_the_api():
+    payload = {**FULL_PAYLOAD, **{field: None for field in validation.SPEND_FIELDS}}
+    assert validate_payload(payload) == {"missing": [], "invalid": []}
+    PredictionRequest(**payload)
+
+
+@pytest.mark.parametrize("field", validation.SPEND_FIELDS)
+def test_negative_spending_is_still_rejected(field):
+    problems = validate_payload({**FULL_PAYLOAD, field: -1})
+    assert problems == {"missing": [], "invalid": [field]}
+    assert "use 0 or more credits" in form_error_message(problems)
+
+
 @pytest.mark.parametrize(
     "field, value",
     [
@@ -233,6 +254,22 @@ def test_badly_formed_boarding_pass_id_blocks_boarding(app, monkeypatch):
     assert app.error[0].value.startswith("Please fix: Boarding pass ID")
     assert any("⚠ Use the format 0001_01" in md.value for md in app.markdown)
     assert calls == []
+
+
+def test_blank_spending_is_sent_as_unknown(app, monkeypatch):
+    sent = []
+
+    def fake_post(url, json=None, **kwargs):
+        sent.append(json)
+        raise requests.exceptions.ConnectionError
+
+    monkeypatch.setattr(requests, "post", fake_post)
+    _pick_model(app)
+    app.button[0].click().run()
+
+    assert not app.exception
+    assert [e.value for e in app.error] == [CONNECTION_MESSAGE]
+    assert [sent[0][field] for field in validation.SPEND_FIELDS] == [None] * 5
 
 
 def test_api_down_shows_friendly_message(app):
