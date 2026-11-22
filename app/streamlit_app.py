@@ -225,11 +225,46 @@ DECK_LORE = {
 }
 
 
+# used when the API can't list its models; matches the API's /models endpoint
+FALLBACK_MODELS = {
+    "logistic_regression": {
+        "display_name": "Logistic Regression",
+        "description": "Straightforward method to predict whether a passenger was transported",
+    },
+    "random_forest": {
+        "display_name": "Random Forest",
+        "description": "Combine many decision trees, learn patterns in passenger details",
+    },
+    "hist_gradient_boosting": {
+        "display_name": "HistGradientBoosting",
+        "description": "Build trees in stages, each tree learning from earlier mistakes",
+    },
+}
+
+
 try:
     response = requests.get(f"{api_base_url}/health", timeout=5)
     api_online = response.ok and response.json().get("status") == "ok"
 except (requests.exceptions.RequestException, ValueError):
     api_online = False
+
+
+def fetch_models() -> dict:
+    try:
+        models_response = requests.get(f"{api_base_url}/models", timeout=5)
+        models_response.raise_for_status()
+        return {
+            model["key"]: {
+                "display_name": model["display_name"],
+                "description": model["description"],
+            }
+            for model in models_response.json()["models"]
+        }
+    except (requests.exceptions.RequestException, ValueError, KeyError, TypeError):
+        return FALLBACK_MODELS
+
+
+MODELS = fetch_models() if api_online else FALLBACK_MODELS
 
 
 st.markdown(
@@ -304,6 +339,25 @@ if "passenger_id" not in st.session_state:
     group = random.randint(1, 9280)
     member = random.randint(1, 3)
     st.session_state.passenger_id = f"{group:04d}_{member:02d}"
+
+
+st.markdown('<div class="panel-title">▸ ORACLE</div>', unsafe_allow_html=True)
+
+model_key = st.selectbox(
+    "Which oracle should read your fate?",
+    options=list(MODELS),
+    index=None,
+    placeholder="Choose a model",
+    format_func=lambda key: MODELS[key]["display_name"],
+)
+
+if model_key is None:
+    st.caption("🔒 Choose a model above before you can board the ship.")
+else:
+    st.markdown(
+        f'<div class="crawl">{escape(MODELS[model_key]["description"])}</div>',
+        unsafe_allow_html=True,
+    )
 
 
 with st.form("boarding_pass"):
@@ -382,7 +436,15 @@ with st.form("boarding_pass"):
         spa = st.slider("💆 Zero-G spa", 0, 5000, 0, step=50)
         vr_deck = st.slider("🕶️ VR deck", 0, 5000, 0, step=50)
 
-    launch = st.form_submit_button("🚀  BOARD THE SHIP")
+    launch = st.form_submit_button(
+        "🚀  BOARD THE SHIP",
+        disabled=model_key is None,
+    )
+
+
+if launch and model_key is None:
+    st.warning("Choose a model above before boarding.")
+    st.stop()
 
 
 if launch:
@@ -403,6 +465,7 @@ if launch:
         "ShoppingMall": spending[2],
         "Spa": spending[3],
         "VRDeck": spending[4],
+        "model": model_key,
     }
 
     name = escape(traveller_name.strip() or "Passenger " + passenger_id)
@@ -447,6 +510,10 @@ if launch:
 
     transported = prediction_data["transported"]
     probability = prediction_data["probability"]
+    used_model = prediction_data.get("model_name", model_key)
+    oracle_name = escape(
+        MODELS.get(used_model, {}).get("display_name", used_model)
+    )
 
     if transported:
         st.markdown(
@@ -461,6 +528,7 @@ if launch:
                 </p>
                 <div class="big">{probability:.0%}</div>
                 <div class="mono">ANOMALY RESONANCE</div>
+                <div class="mono">ORACLE · {oracle_name}</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -478,6 +546,7 @@ if launch:
                 </p>
                 <div class="big">{probability:.0%}</div>
                 <div class="mono">ANOMALY RESONANCE</div>
+                <div class="mono">ORACLE · {oracle_name}</div>
             </div>
             """,
             unsafe_allow_html=True,
