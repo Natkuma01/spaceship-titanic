@@ -12,6 +12,13 @@ EXPECTED_DESCRIPTIONS = {
     "hist_gradient_boosting": "Build trees in stages, each tree learning from earlier mistakes",
 }
 
+METRIC_KEYS = {
+    "cv_accuracy_mean",
+    "cv_accuracy_std",
+    "holdout_accuracy",
+    "holdout_roc_auc",
+}
+
 
 @pytest.fixture(scope="module")
 def client():
@@ -53,8 +60,17 @@ def test_list_models(client):
     for model in models:
         assert model["description"] == EXPECTED_DESCRIPTIONS[model["key"]]
         assert model["display_name"]
-        assert 0 <= model["metrics"]["cv_accuracy_mean"] <= 1
-        assert 0 <= model["metrics"]["holdout_accuracy"] <= 1
+        assert set(model["metrics"]) == METRIC_KEYS
+        for value in model["metrics"].values():
+            assert 0 <= value <= 1
+
+
+def test_list_models_metrics_match_model_info(client):
+    models = client.get("/models").json()["models"]
+    model_info = client.get("/model-info").json()
+
+    for model in models:
+        assert model["metrics"] == model_info[model["key"]]["metrics"]
 
 
 @pytest.mark.parametrize("model_name", MODEL_NAMES)
