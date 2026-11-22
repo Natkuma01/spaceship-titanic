@@ -117,6 +117,23 @@ p, label, input, .stMarkdown { font-size: 1.2rem; }
     box-shadow: 0 0 25px rgba(124, 247, 255, 0.12);
 }
 
+/* Bigger, easier-to-read text inside the passenger form only (was 14px). */
+[data-testid="stForm"] [data-testid="stWidgetLabel"] p,
+[data-testid="stForm"] [data-testid="stCheckbox"] p {
+    font-size: 1.1rem !important;
+}
+[data-testid="stForm"] input,
+[data-testid="stForm"] [data-baseweb="select"] *,
+[data-testid="stForm"] [data-testid="stRadio"] [role="radiogroup"] p,
+[data-testid="stForm"] [data-testid="stSlider"] [data-testid="stSliderThumbValue"],
+[data-testid="stForm"] [data-testid="stSlider"] [data-testid="stSliderThumbValue"] p,
+[data-testid="stForm"] [data-testid="stSlider"] [data-testid^="stSliderTickBar"] p,
+[data-testid="stForm"] [data-testid="stCaptionContainer"],
+[data-testid="stForm"] [data-testid="stCaptionContainer"] p,
+[data-testid="stForm"] [data-testid="stFormSubmitButton"] button p {
+    font-size: 1.05rem !important;
+}
+
 .stButton button, [data-testid="stFormSubmitButton"] button {
     font-family: 'VT323', monospace !important;
     letter-spacing: 0.2em;
