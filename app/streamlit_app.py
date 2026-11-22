@@ -510,7 +510,7 @@ st.markdown('<div class="panel-title">▸ ORACLE</div>', unsafe_allow_html=True)
 
 with st.container(key="oracle_picker"):
     model_key = st.radio(
-        "🚨 Which oracle should read your fate? (Required)",
+        "🚨 Which oracle should read your fate? (*Required)",
         options=list(MODELS),
         index=None,
         horizontal=True,
