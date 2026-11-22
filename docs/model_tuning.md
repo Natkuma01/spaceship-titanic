@@ -28,7 +28,7 @@ All scores are accuracy. Training rows and holdout rows use the same 80/20 split
 
 | Check | Original | Suggested with AI |
 |---|---|---|
-| 5-fold CV, seed 42 (used for the search) | 80.43% | 80.73% |
+| 5-fold CV, seed 42 (same as `scripts/train.py`) | 80.43% | 80.47% |
 | 25 fresh folds (5-fold x 5 repeats, seed 2024) | 80.70% | 80.83% |
 | Holdout set (1,739 passengers) | 81.37% | 81.89% |
 
